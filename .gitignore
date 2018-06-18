@@ -1,0 +1,6 @@
+*~
+.directory
+*.log
+*.o
+*.a
+*.so
