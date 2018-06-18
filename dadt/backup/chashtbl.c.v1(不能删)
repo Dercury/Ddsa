@@ -1,0 +1,139 @@
+/*****************************************************************************/
+/**
+ * @file        chashtbl.c
+ * @brief       chained hash table
+ * @version     1.0
+ * @author      dercury
+ * @date        2013-01-19
+ */
+/*****************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "common.h"
+#include "dlist.h"
+#include "chashtbl.h"
+
+#ifdef __cplusplus
+#if __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+#endif /* __cplusplus */
+
+#if CODE_SEPARATOR("Inner Function", 1)
+#endif
+
+#if CODE_SEPARATOR("Outer Function", 1)
+/*****************************************************************************/
+FuncRet chashtbl_init(CHashTbl *htbl, size_t buckets, HashFunc hash,
+        FreeFunc data_free, CmpFunc data_cmp)
+{
+    size_t  i = 0;
+
+    /* Allocate space for the hash table */
+    MEMORY_ALLOC_AND_INIT((htbl->table), (buckets * sizeof(DList)));
+
+    /* Initialize the buckets */
+    htbl->buckets = buckets;
+    for (i = 0; i < htbl->buckets; i++)
+    {
+        IF_ERROR_RETURN(dlist_init(&(htbl->table[i]), data_free, data_cmp));
+    }
+
+    /* Encapsulate the functions */
+    htbl->hash = hash;
+    htbl->data_cmp = data_cmp;
+    htbl->data_free = data_free;
+
+    /* Initialize the number of elements in the table */
+    htbl->size = 0;
+
+    return RET_OK;
+}
+
+/*****************************************************************************/
+FuncRet chashtbl_destroy(CHashTbl *htbl)
+{
+    size_t  i = 0;
+
+    /* Destroy each bucket */
+    for (i = 0; i < htbl->buckets; i++)
+    {
+        IF_ERROR_RETURN(dlist_destroy(&(htbl->table[i])));
+    }
+
+    /* Free the storage allocated for the hash table */
+    MEMORY_FREE(htbl->table);
+
+    /* No operations are allowed now, but clear the structure as precaution */
+    memset(htbl, 0, sizeof(CHashTbl));
+    htbl = NULL;
+
+    return RET_OK;
+}
+
+/*****************************************************************************/
+FuncRet chashtbl_insert(CHashTbl *htbl, const void *data)
+{
+    void    *temp = (void *)data;
+    size_t  bucket = 0;
+
+    /* Do nothing if the data is already in the table */
+    if (RET_OK == chashtbl_lookup(htbl, &temp))
+    {
+        return RET_ALREADY_EXIST;
+    }
+
+    /* Hash the key */
+    bucket = ((htbl->hash)(temp)) % (htbl->buckets);
+
+    /* Insert the data into the bucket */
+    IF_ERROR_RETURN(dlist_insert_head(&(htbl->table[bucket]), temp));
+    htbl->size++;
+
+    return RET_OK;
+}
+
+/*****************************************************************************/
+FuncRet chashtbl_remove(CHashTbl *htbl, Bool free_flag, void **data)
+{
+    void    *temp = *data;
+    size_t  bucket = 0;
+
+    /* Hash the key */
+    bucket = ((htbl->hash)(temp)) % (htbl->buckets);
+
+    /* Search for the data in the bucket */
+    IF_ERROR_RETURN(dlist_remove_by_value(&(htbl->table[bucket]), temp, free_flag));
+    htbl->size--;
+
+    /* Return that the data was not found */
+    return RET_OK;
+}
+
+/*****************************************************************************/
+FuncRet chashtbl_lookup(CHashTbl *htbl, void **data)
+{
+    void    *temp = *data;
+    size_t  bucket = 0;
+    size_t  index = 0;
+
+    /* Hash the key */
+    bucket = ((htbl->hash)(temp)) % (htbl->buckets);
+
+    /* Search for the data in the bucket */
+    IF_ERROR_RETURN(dlist_get_by_value(&(htbl->table[bucket]), temp, &index));
+
+    /* Return that the data was not found */
+    return RET_OK;
+}
+
+#endif
+
+#ifdef __cplusplus
+#if __cplusplus
+}
+#endif /* __cplusplus */
+#endif /* __cplusplus */
+

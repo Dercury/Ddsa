@@ -1,0 +1,306 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define LEFT 0
+#define RIGHT 1
+
+inline void * xalloc(int size)
+{
+    void *p;
+    p = (void *)malloc(size);
+    if(p == NULL)
+    {
+        printf("alloc memory error!\n");
+        exit(1);
+    }
+    return p;
+}
+
+#define xfree(p) free(p);
+
+struct AVLTree
+{
+    unsigned int nData;
+    struct AVLTree * pLeft;
+    struct AVLTree * pRight;
+    int nHeight;
+};
+
+static int Max(int a, int b)
+{
+    return (a>b?a:b);
+}
+
+static int Height(struct AVLTree * pNode)
+{
+    if( NULL == pNode )
+        return -1;
+    return pNode->nHeight;
+}
+
+struct AVLTree * SingleRotateLL( struct AVLTree * pNode )
+{
+    struct AVLTree * pTmp;
+    if(pNode == NULL)
+        return NULL;
+    pTmp = pNode->pLeft;
+    pNode->pLeft = pTmp->pRight;
+    pTmp->pRight = pNode;
+    // update the nHeight
+    pNode->nHeight = Max(Height(pNode->pLeft), Height(pNode->pRight)) + 1;
+    pTmp->nHeight = Max(Height(pTmp->pLeft), Height(pTmp->pRight)) + 1;
+}
+
+struct AVLTree * SingleRotateRR( struct AVLTree * pNode )
+{
+    struct AVLTree * pTmp;
+    if(pNode == NULL)
+        return NULL;
+    pTmp = pNode->pRight;
+    pNode->pRight = pTmp->pLeft;
+    pTmp->pLeft = pNode;
+    // update the nHeight
+    pNode->nHeight = Max(Height(pNode->pLeft), Height(pNode->pRight)) + 1;
+    pTmp->nHeight = Max(Height(pTmp->pLeft), Height(pTmp->pRight)) + 1;
+}
+
+/*
+ * 1 Let Left tree rotate to Right
+ * 2 Let the tree rotate to Left
+ */
+struct AVLTree * SingleRotateLR( struct AVLTree * pNode )
+{
+    pNode->pLeft = SingleRotateRR(pNode->pLeft);
+    return SingleRotateLL(pNode);
+}
+
+struct AVLTree * SingleRotateRL( struct AVLTree * pNode )
+{
+    pNode->pRight = SingleRotateLL(pNode->pRight);
+    return SingleRotateRR(pNode);
+}
+
+struct AVLTree * insert_tree( unsigned int nData, struct AVLTree * pNode )
+{
+    if(NULL == pNode)
+    {
+        pNode = (struct AVLTree *)xalloc(sizeof(struct AVLTree));
+        pNode->nData = nData;
+        pNode->nHeight = 0;
+        pNode->pLeft = NULL;
+        pNode->pRight = NULL;
+    }
+    else if( nData < pNode->nData ) //Insert to Left
+    {
+        pNode->pLeft = insert_tree(nData, pNode->pLeft);
+        if(Height(pNode->pLeft)-Height(pNode->pRight)==2) // Not balance
+        {
+            if( nData < pNode->pLeft->nData ) // it is LL style
+            {
+                pNode = SingleRotateLL(pNode);
+            }
+            else // it is LR style
+            {
+                pNode = SingleRotateLR(pNode);
+            }
+        }
+    }
+    else // Insert to Right
+    {
+        pNode->pRight = insert_tree(nData, pNode->pRight);
+        if(Height(pNode->pRight)-Height(pNode->pLeft) == 2) // Not balance
+        {
+            if(nData > pNode->pRight->nData) // It is RR style
+            {
+                pNode = SingleRotateRR(pNode);
+            }
+            else // it is RL style
+            {
+                pNode = SingleRotateRL(pNode);
+            }
+        }
+    }
+
+    pNode->nHeight = Max(Height(pNode->pLeft), Height(pNode->pRight)) + 1;
+
+    return pNode;
+}
+
+struct AVLTree * delete_node(unsigned int nData, struct AVLTree * pNode)
+{
+    struct AVLTree * p; // node wait for delete
+    struct AVLTree * newNode;
+    int targ = LEFT;
+
+    if( pNode == NULL )
+        return NULL;
+    printf("Layer====%d\n", pNode->nData);
+
+    if( pNode->nData == nData )
+    {
+        // find, delete it
+        printf("Find it, will delete %d\n", nData);
+        // 1. has only a left child
+        if( pNode->pRight == NULL )
+        {
+            p = pNode;
+            newNode = pNode->pLeft;
+            xfree(p);
+            return newNode;
+            // don't need rotate and update height
+        }
+        // 2. has left and right child
+        else
+        {
+            // find the last node of right child tree
+            p = pNode->pRight;
+            while(p->pLeft)
+            {
+                p = p->pLeft;
+            }
+            // swap the value
+            pNode->nData = p->nData;
+            pNode->pRight = delete_node(p->nData, pNode->pRight);
+            targ = RIGHT;
+        }
+
+    }
+    else if(nData < pNode->nData)
+    {
+        // Recursive Left tree
+        printf("Try to Left find it, nData=%d, pNode->nData = %d\n", nData, pNode->nData);
+        pNode->pLeft = delete_node(nData, pNode->pLeft);
+        targ = LEFT;
+    }
+    else
+    {
+        printf("Try to Right find it, nData=%d, pNode->nData = %d\n", nData, pNode->nData);
+        pNode->pRight = delete_node(nData, pNode->pRight);
+        targ = RIGHT;
+    }
+
+    printf("Node=%d, Left Height=%d, Right Height=%d\n",
+        pNode->nData, Height(pNode->pRight), Height(pNode->pLeft));
+
+    // Check
+    if( targ == LEFT && Height(pNode->pRight) - Height(pNode->pLeft) == 2)
+    {
+        // find RR, RL
+        if( Height(pNode->pRight->pRight) > Height(pNode->pRight->pLeft) )
+        {
+            //RR
+            SingleRotateRR(pNode);
+        }
+        else
+        {
+            //RL
+            SingleRotateRL(pNode);
+        }
+    }
+    else if( targ == RIGHT && Height(pNode->pLeft) - Height(pNode->pRight) == 2 )
+    {
+        // find LL, LR
+        if( Height(pNode->pLeft->pLeft) > Height(pNode->pLeft->pRight) )
+        {
+            //LL
+            SingleRotateLL(pNode);
+        }
+        else
+        {
+            //LR
+            SingleRotateLR(pNode);
+        }
+    }
+    // Update
+    pNode->nHeight = Max(Height(pNode->pLeft), Height(pNode->pRight)) + 1;
+    return pNode;
+}
+
+void destroy_tree( struct AVLTree **ppRoot )
+{
+    if(NULL == ppRoot || NULL == *ppRoot)
+        return;
+    destroy_tree(&((*ppRoot)->pLeft));
+    destroy_tree(&((*ppRoot)->pRight));
+    xfree(*ppRoot);
+    *ppRoot = NULL;
+}
+
+
+void print_tree(struct AVLTree * pRoot, int layer)
+{
+    int i;
+    if(NULL == pRoot)
+        return;
+    layer = layer + 1;
+    if(pRoot->pLeft)
+    {
+        //printf("(");
+        print_tree(pRoot->pLeft, layer);
+        //printf(")");
+    }
+    for(i=1; i < layer; i++)
+        printf("   " );
+    printf("%3u[%d]\n", pRoot->nData, pRoot->nHeight);
+    if(pRoot->pRight)
+    {
+        //printf("(");
+        print_tree(pRoot->pRight, layer);
+        //printf(")");
+    }
+}
+
+
+int main()
+{
+    int i, j;
+    int op = 1;
+    int nData;
+    struct AVLTree * pRoot = NULL;
+
+    srand(time(NULL));
+    for(i = 0; i < 10; i++)
+    {
+        j=rand()%1000;
+        pRoot = insert_tree(j, pRoot);
+    }
+
+    print_tree(pRoot, 0);
+    printf("\n-----------------------------\n");
+
+    printf("0:Exit!\n");
+    printf("1:Insert!\n");
+    printf("2:Delete!\n");
+    printf("3:Print!\n");
+
+    while(op)
+    {
+        scanf("%d", &op);
+        switch(op)
+        {
+            case 0:
+                break;
+            case 1:
+                printf("Input your input element:");
+                scanf("%d", &nData);
+                pRoot = insert_tree(nData, pRoot);
+                break;
+            case 2:
+                printf("Input your delete element:");
+                scanf("%d", &nData);
+                pRoot = delete_node(nData, pRoot);
+                break;
+            case 3:
+                print_tree(pRoot, 0);
+                printf("\n-----------------------------\n");
+                break;
+            default:
+                break;
+        }
+    }
+
+Pro_out:
+    destroy_tree(&pRoot);
+    return 0;
+}

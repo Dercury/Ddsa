@@ -1,0 +1,742 @@
+/*****************************************************************************/
+/**
+ * @file        avltree.h
+ * @brief       binary tree
+ * @version     1.0
+ * @author      dercury
+ * @date        2012-02-04
+ */
+/*****************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "dpub.h"
+#include "avltree.h"
+#include "seqqueue.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+#if CODE_SEPARATOR("Inner Function", 1)
+/*****************************************************************************/
+static eFuncRtn avltree_make_node(const void *data, AvlTreeNode **node)
+{
+    IF_ERROR_EXIT(alloc_memory((void **)node, sizeof(AvlTreeNode)));
+    (*node)->data = (void *)data;
+    (*node)->valid = E_VALID;
+    (*node)->factor = AVL_BALANCED;
+    (*node)->position = TREE_NODE_MIDDLE;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn avltree_free_node(AvlTreeNode **node, eBool free_flag, FreeFunc data_free)
+{
+    if (E_TRUE == free_flag && NULL != data_free)
+    {
+        data_free(&((*node)->data));
+    }
+
+    free_memory((void **)node);
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn avltree_update_node(AvlTreeNode *node, const void *data, FreeFunc data_free)
+{
+    if (NULL != data_free)
+    {
+        data_free(&(node->data));
+    }
+    node->data = (void *)data;
+    node->valid = E_VALID;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eBool avltree_is_root(AvlTree *thiz, AvlTreeNode *node)
+{
+    if (thiz->root == node)
+    {
+        return E_TRUE;
+    }
+    else
+    {
+        return E_FALSE;
+    }
+}
+
+/*****************************************************************************/
+static eBool avltree_is_leaf(AvlTreeNode *node)
+{
+    if (NULL == node->left && NULL == node->right)
+    {
+        return E_TRUE;
+    } 
+    else
+    {
+        return E_FALSE;
+    }
+}
+
+/*****************************************************************************/
+static eFuncRtn avltree_preorder_traverse(AvlTreeNode *root, VisitFunc visit, void *context)
+{
+    if (NULL != root)
+    {
+        IF_ERROR_RETURN(visit(context, root->data));
+        IF_ERROR_RETURN(avltree_preorder_traverse(root->left, visit, context));
+        IF_ERROR_RETURN(avltree_preorder_traverse(root->right, visit, context));
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn avltree_inorder_traverse(AvlTreeNode *root, VisitFunc visit, void *context)
+{
+    if (NULL != root)
+    {
+        IF_ERROR_RETURN(avltree_inorder_traverse(root->left, visit, context));
+        IF_ERROR_RETURN(visit(context, root->data));
+        IF_ERROR_RETURN(avltree_inorder_traverse(root->right, visit, context));
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn avltree_postorder_traverse(AvlTreeNode *root, VisitFunc visit, void *context)
+{
+    if (NULL != root)
+    {
+        IF_ERROR_RETURN(avltree_postorder_traverse(root->left, visit, context));
+        IF_ERROR_RETURN(avltree_postorder_traverse(root->right, visit, context));
+        IF_ERROR_RETURN(visit(context, root->data));
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static void avltree_left_left_case(AvlTreeNode **parent)
+{
+    AvlTreeNode *left_child = (*parent)->left;
+    AvlTreeNode *grand_parent = (*parent)->parent;
+
+    (*parent)->left = left_child->right;
+    if (NULL != left_child->right)
+    {
+        left_child->right->parent = *parent;
+        left_child->right->position = TREE_NODE_LEFT;
+    }
+
+    left_child->right = *parent;
+    (*parent)->parent = left_child;
+    (*parent)->position = TREE_NODE_RIGHT;
+
+    (*parent)->factor = AVL_BALANCED;
+    left_child->factor = AVL_BALANCED;
+
+    *parent = left_child;
+    if (NULL != grand_parent)
+    {
+        grand_parent->left = (*parent);
+        (*parent)->parent = grand_parent;
+    }
+
+    return;
+}
+
+/*****************************************************************************/
+static void avltree_right_right_case(AvlTreeNode **parent)
+{
+    AvlTreeNode *right_child = (*parent)->right;
+    AvlTreeNode *grand_parent = (*parent)->parent;
+
+    (*parent)->right = right_child->left;
+    if (NULL != right_child->left)
+    {
+        right_child->left->parent = *parent;
+        right_child->left->position = TREE_NODE_RIGHT;
+    }
+
+    right_child->left = *parent;
+    (*parent)->parent = right_child;
+    (*parent)->position = TREE_NODE_LEFT;
+
+    (*parent)->factor = AVL_BALANCED;
+    right_child->factor = AVL_BALANCED;
+
+    *parent = right_child;
+    if (NULL != grand_parent)
+    {
+        grand_parent->right = (*parent);
+        (*parent)->parent = grand_parent;
+    }
+
+    return;
+}
+
+/*****************************************************************************/
+static void avltree_left_right_case(AvlTreeNode **grand_parent)
+{
+    avltree_right_right_case(&((*grand_parent)->left));
+    avltree_left_left_case(grand_parent);
+
+    switch ((*grand_parent)->factor)
+    {
+    case AVL_LEFT_HEAVY:
+        (*grand_parent)->right->factor = AVL_RIGHT_HEAVY;
+        break;
+    case AVL_RIGHT_HEAVY:
+        (*grand_parent)->left->factor = AVL_LEFT_HEAVY;
+        break;
+    }
+    (*grand_parent)->factor = AVL_BALANCED;
+
+    return;
+}
+
+/*****************************************************************************/
+static void avltree_right_left_case(AvlTreeNode **grand_parent)
+{
+    avltree_left_left_case(&((*grand_parent)->right));
+    avltree_right_right_case(grand_parent);
+
+    switch ((*grand_parent)->factor)
+    {
+    case AVL_LEFT_HEAVY:
+        (*grand_parent)->right->factor = AVL_RIGHT_HEAVY;
+        break;
+    case AVL_RIGHT_HEAVY:
+        (*grand_parent)->left->factor = AVL_LEFT_HEAVY;
+        break;
+    }
+    (*grand_parent)->factor = AVL_BALANCED;
+
+    return;
+}
+
+static eFuncRtn avltree_balance2(AvlTreeNode *node)
+{
+    AvlTreeNode *parent = node->parent;
+    AvlTreeNode *grand_parent = parent->parent;
+    if (TREE_NODE_LEFT == node->position)
+    {
+        switch (parent->factor)
+        {
+        case AVL_LEFT_HEAVY:    
+            return FUNC_UNREACHABLE;
+            break;
+        case AVL_BALANCED:
+            parent->factor = AVL_LEFT_HEAVY;
+            switch (grand_parent->factor)
+            {
+            case AVL_LEFT_HEAVY:
+                if (TREE_NODE_LEFT == parent->position)
+                {
+                    avltree_left_left_case(&grand_parent);
+                }
+                else
+                {
+                    grand_parent->factor = AVL_BALANCED;
+                }
+                break;
+            case AVL_BALANCED:
+                if (TREE_NODE_LEFT == parent->position)
+                {
+                    grand_parent->factor = AVL_LEFT_HEAVY;
+                } 
+                else
+                {
+                    grand_parent->factor = AVL_RIGHT_HEAVY;
+                }
+                break;
+            case AVL_RIGHT_HEAVY:
+                if (TREE_NODE_LEFT == parent->position)
+                {
+                    grand_parent->factor = AVL_BALANCED;
+                }
+                else
+                {
+                    avltree_right_left_case(&grand_parent);
+                }
+                break;
+            }
+            break;
+        case AVL_RIGHT_HEAVY:
+            parent->factor = AVL_BALANCED;
+            break;
+        }
+    }
+    else if (TREE_NODE_RIGHT == node->position)
+    {
+        switch (parent->factor)
+        {
+        case AVL_LEFT_HEAVY:    
+            parent->factor = AVL_BALANCED;
+            break;
+        case AVL_BALANCED:
+            parent->factor = AVL_RIGHT_HEAVY;
+            switch (grand_parent->factor)
+            {
+            case AVL_LEFT_HEAVY:
+                if (TREE_NODE_LEFT == parent->position)
+                {
+                    avltree_left_right_case(&grand_parent);
+                }
+                else
+                {
+                    grand_parent->factor = AVL_BALANCED;
+                }
+                break;
+            case AVL_BALANCED:
+                if (TREE_NODE_LEFT == parent->position)
+                {
+                    grand_parent->factor = AVL_LEFT_HEAVY;
+                } 
+                else
+                {
+                    grand_parent->factor = AVL_RIGHT_HEAVY;
+                }
+                break;
+            case AVL_RIGHT_HEAVY:
+                if (TREE_NODE_LEFT == parent->position)
+                {
+                    grand_parent->factor = AVL_BALANCED;
+                }
+                else
+                {
+                    avltree_right_right_case(&grand_parent);
+                }
+                break;
+            }
+            break;
+        case AVL_RIGHT_HEAVY:
+            return FUNC_UNREACHABLE;
+            break;
+        }
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static void avltree_left_case(AvlTreeNode **grand_parent)
+{
+    AvlTreeNode *parent = (*grand_parent)->left;
+    
+    if (AVL_LEFT_HEAVY == parent->factor)
+    {
+        avltree_left_left_case(grand_parent);
+    }
+    else
+    {
+        avltree_left_right_case(grand_parent);
+    }
+}
+
+/*****************************************************************************/
+static void avltree_right_case(AvlTreeNode **grand_parent)
+{
+    AvlTreeNode *parent = (*grand_parent)->left;
+
+    if (AVL_LEFT_HEAVY == parent->factor)
+    {
+        avltree_right_left_case(grand_parent);
+    }
+    else
+    {
+        avltree_right_right_case(grand_parent);
+    }
+}
+
+/*****************************************************************************/
+static void avltree_rotate_balance(AvlTreeNode *node)
+{
+    AvlTreeNode *parent = node->parent;
+    AvlTreeNode *grand_parent = parent->parent;
+
+    if (NULL == grand_parent)
+    {
+        return;
+    }
+
+    switch (grand_parent->factor)
+    {
+    case AVL_LEFT_HEAVY:
+        if (TREE_NODE_LEFT == parent->position)
+        {
+            avltree_left_case(&grand_parent);
+        }
+        else
+        {
+            grand_parent->factor = AVL_BALANCED;
+        }
+        break;
+    case AVL_BALANCED:
+        if (TREE_NODE_LEFT == parent->position)
+        {
+            grand_parent->factor = AVL_LEFT_HEAVY;
+        } 
+        else
+        {
+            grand_parent->factor = AVL_RIGHT_HEAVY;
+        }
+        break;
+    case AVL_RIGHT_HEAVY:
+        if (TREE_NODE_LEFT == parent->position)
+        {
+            grand_parent->factor = AVL_BALANCED;
+        }
+        else
+        {
+            avltree_right_case(&grand_parent);
+        }
+        break;
+    }
+}
+
+/*****************************************************************************/
+static eFuncRtn avltree_balance(AvlTreeNode *node)
+{
+    AvlTreeNode *parent = node->parent;
+    AvlTreeNode *grand_parent = parent->parent;
+
+    if (NULL == grand_parent)
+    {
+        return FUNC_OK;
+    }
+
+    if (TREE_NODE_LEFT == node->position)
+    {
+        switch (parent->factor)
+        {
+        case AVL_LEFT_HEAVY:    
+            return FUNC_UNREACHABLE;
+            break;
+        case AVL_BALANCED:
+            parent->factor = AVL_LEFT_HEAVY;
+            avltree_rotate_balance(node);
+            break;
+        case AVL_RIGHT_HEAVY:
+            parent->factor = AVL_BALANCED;
+            break;
+        }
+    }
+    else if (TREE_NODE_RIGHT == node->position)
+    {
+        switch (parent->factor)
+        {
+        case AVL_LEFT_HEAVY:    
+            parent->factor = AVL_BALANCED;
+            break;
+        case AVL_BALANCED:
+            parent->factor = AVL_RIGHT_HEAVY;
+            avltree_rotate_balance(node);
+            break;
+        case AVL_RIGHT_HEAVY:
+            return FUNC_UNREACHABLE;
+            break;
+        }
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static void avltree_left_right_case2(AvlTreeNode **grand_parent)
+{
+    AvlTreeNode *left_child = (*grand_parent)->left;
+    AvlTreeNode *grand_child = left_child->right;
+
+    left_child->right = grand_child->left;
+    grand_child->left = left_child;
+    (*grand_parent)->left = grand_child->right;
+    grand_child->right = *grand_parent;
+
+    switch (grand_child->factor)
+    {
+    case AVL_LEFT_HEAVY:
+        (*grand_parent)->factor = AVL_RIGHT_HEAVY;
+        left_child->factor = AVL_BALANCED;
+        break;
+    case AVL_BALANCED:
+        (*grand_parent)->factor = AVL_BALANCED;
+        left_child->factor = AVL_BALANCED;
+        break;
+    case AVL_RIGHT_HEAVY:
+        (*grand_parent)->factor = AVL_BALANCED;
+        left_child->factor = AVL_LEFT_HEAVY;
+        break;
+    }
+    grand_child->factor = AVL_BALANCED;
+
+    *grand_parent = grand_child;
+
+    return;
+}
+
+/*****************************************************************************/
+static void avltree_right_left_case2(AvlTreeNode **grand_parent)
+{
+    AvlTreeNode *right_child = (*grand_parent)->right;
+    AvlTreeNode *grand_child = right_child->left;
+
+    right_child->left = grand_child->right;
+    grand_child->right = right_child;
+    (*grand_parent)->right = grand_child->left;
+    grand_child->left = *grand_parent;
+
+    switch (grand_child->factor)
+    {
+    case AVL_LEFT_HEAVY:
+        (*grand_parent)->factor = AVL_BALANCED;
+        right_child->factor = AVL_RIGHT_HEAVY;
+        break;
+    case AVL_BALANCED:
+        (*grand_parent)->factor = AVL_BALANCED;
+        right_child->factor = AVL_BALANCED;
+        break;
+    case AVL_RIGHT_HEAVY:
+        (*grand_parent)->factor = AVL_LEFT_HEAVY;
+        right_child->factor = AVL_BALANCED;
+        break;
+    }
+    grand_child->factor = AVL_BALANCED;
+
+    *grand_parent = grand_child;
+
+    return;
+}
+
+/*****************************************************************************/
+/* 
+ * If [data] exist in [thiz] tree, [node] will be the one whose data is [data].
+ * Else, [node] will be parent of [data] node and [pos] will be the position.
+*/
+static eFuncRtn avltree_get_position(AvlTree *thiz, const void *data, AvlTreeNode *sub_root, AvlTreeNode **node, eTreeNodePos *pos)
+{
+    eFuncRtn func_rtn = FUNC_OK;
+    eCmpRtn cmp_rslt;
+
+    if (NULL == sub_root)
+    {
+        return FUNC_NOT_EXIST;
+    }
+    
+    *node = sub_root;
+    cmp_rslt = (thiz->data_cmp)(data, sub_root->data);
+    switch (cmp_rslt)
+    {
+    case CMP_LESS:
+        *pos = TREE_NODE_LEFT;
+        func_rtn = avltree_get_position(thiz, data, sub_root->left, node, pos);
+    	break;
+    case CMP_EQUAL:
+        *pos = TREE_NODE_MIDDLE;
+        func_rtn = FUNC_OK;
+        break;
+    case CMP_MORE:
+        *pos = TREE_NODE_RIGHT;
+        func_rtn = avltree_get_position(thiz, data, sub_root->right, node, pos);
+        break;
+    }
+    
+    return func_rtn;
+}
+
+#endif
+
+#if CODE_SEPARATOR("Outer Function", 1)
+/*****************************************************************************/
+eFuncRtn avltree_init(AvlTree *thiz, FreeFunc data_free, CmpFunc data_cmp)
+{
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    thiz->root = NULL;
+    thiz->size = 0;
+    thiz->data_free = data_free;
+    thiz->data_cmp = data_cmp;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_destroy(AvlTree *thiz)
+{
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_get_size(AvlTree *thiz, SizeType *size)
+{
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(size);
+
+    *size = thiz->size;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_preorder_traversal(AvlTree *thiz, VisitFunc visit, void *context)
+{
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(visit);
+
+    return avltree_preorder_traverse(thiz->root, visit, context);
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_inorder_traversal(AvlTree *thiz, VisitFunc visit, void *context)
+{
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(visit);
+
+    return avltree_inorder_traverse(thiz->root, visit, context);
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_postorder_traversal(AvlTree *thiz, VisitFunc visit, void *context)
+{
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(visit);
+
+    return avltree_postorder_traverse(thiz->root, visit, context);
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_levelorder_traversal(AvlTree *thiz, VisitFunc visit, void *context)
+{
+    SeqQueue *queue;
+    SizeType i = 0;
+    AvlTreeNode *temp = NULL;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(visit);
+
+    queue = seqqueue_create(thiz->size / 2 + 1);
+    IF_ERROR_RETURN(seqqueue_enqueue(queue, thiz->root));
+
+    while (i < thiz->size)
+    {
+        IF_ERROR_RETURN(seqqueue_dequeue(queue, (void **)&temp));
+        if (NULL != temp)
+        {
+            IF_ERROR_RETURN(visit(context, temp->data));
+            IF_ERROR_RETURN(seqqueue_enqueue(queue, temp->left));
+            IF_ERROR_RETURN(seqqueue_enqueue(queue, temp->right));
+            i++;
+        }
+    }   
+
+    IF_ERROR_RETURN(seqqueue_destroy(&queue));
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_insert(AvlTree *thiz, const void *data)
+{
+    AvlTreeNode *node = NULL;
+    AvlTreeNode *parent = NULL;
+    eTreeNodePos pos = TREE_NODE_MIDDLE;
+    eFuncRtn func_rtn = FUNC_OK;
+    
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    if (NULL == thiz->root)
+    {
+        IF_ERROR_RETURN(avltree_make_node(data, &node));
+        thiz->root = node;
+        thiz->size++;
+
+        return FUNC_OK;
+    }
+
+    func_rtn = avltree_get_position(thiz, data, thiz->root, &parent, &pos);
+    if (FUNC_OK == func_rtn)
+    {
+        if (E_VALID == parent->valid)
+        {
+            return FUNC_ALREADY_EXIST;
+        } 
+        else
+        {
+            return avltree_update_node(parent, data, thiz->data_free);
+        }
+    } 
+    else if (FUNC_NOT_EXIST == func_rtn)
+    {
+        IF_ERROR_RETURN(avltree_make_node(data, &node));
+        if (TREE_NODE_LEFT == pos)
+        {
+            parent->left = node;
+        } 
+        else if (TREE_NODE_RIGHT == pos)
+        {
+            parent->right = node;
+        }
+        else
+        {
+            return FUNC_UNREACHABLE;
+        }
+        node->parent = parent;
+        node->position = pos;
+        thiz->size++;
+
+        IF_ERROR_RETURN(avltree_balance(node));
+    }
+    else
+    {
+        return FUNC_UNREACHABLE;
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_remove(AvlTree *thiz, eBool free_flag, void **data)
+{
+    AvlTreeNode *parent = NULL;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_lookup(AvlTree *thiz, void **data)
+{
+    AvlTreeNode *parent = NULL;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_print(AvlTree *thiz, PrintFunc print)
+{
+    return avltree_inorder_traversal(thiz, (VisitFunc)print, NULL);
+}
+
+/*****************************************************************************/
+eFuncRtn avltree_print_figure(AvlTree *thiz, PrintFunc print)
+{
+    return avltree_levelorder_traversal(thiz, (VisitFunc)print, NULL);
+}
+
+/*****************************************************************************/
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+

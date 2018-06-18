@@ -1,0 +1,168 @@
+/*****************************************************************************/
+/**
+ * @file        avltree.h
+ * @brief       binary tree
+ * @version     1.0
+ * @author      dercury
+ * @date        2012-02-04
+ */
+/*****************************************************************************/
+#ifndef AVLTREE_H
+#define AVLTREE_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+typedef enum tagTreeNodePos
+{
+    TREE_NODE_LEFT      = -1,
+    TREE_NODE_MIDDLE    = 0,
+    TREE_NODE_RIGHT     = 1,
+} eTreeNodePos;
+
+typedef enum tagAvlFactor
+{
+    AVL_LEFT_HEAVY  = -1,
+    AVL_BALANCED    = 0,
+    AVL_RIGHT_HEAVY = 1,
+} eAvlTreeFactor;
+
+/*****************************************************************************/
+/**
+ * @struct      AvlTreeNode
+ * @brief       structure for binary tree elements
+ */
+/*****************************************************************************/
+typedef struct tagAvlTreeNode
+{
+    void                   *data;
+    struct tagAvlTreeNode  *left;
+    struct tagAvlTreeNode  *right;
+    struct tagAvlTreeNode  *parent;
+    eTreeNodePos            position;
+    eAvlTreeFactor          factor;
+    eValid                  valid;
+} AvlTreeNode;
+
+/*****************************************************************************/
+/**
+ * @struct      AvlTree
+ * @brief       structure for binary trees
+ */
+/*****************************************************************************/
+typedef struct tagAvlTree
+{
+    AvlTreeNode    *root;
+    SizeType        size;
+    FreeFunc        data_free;
+    CmpFunc         data_cmp;
+} AvlTree;
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_init(AvlTree *tree, void (*destroy)(void *data));
+ * @brief       initializes binary tree
+ * @param[in]   tree        pointer of binary tree
+ * @param[in]   destroy     user defined function used to destroy the tree
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(1)
+ */
+/*****************************************************************************/
+extern eFuncRtn avltree_init(AvlTree *thiz, FreeFunc data_free, CmpFunc data_cmp);
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_destroy(AvlTree *tree);
+ * @brief       destroys binary tree
+ * @param[in]   tree        pointer of binary tree
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(n)
+ */
+/*****************************************************************************/
+extern eFuncRtn avltree_destroy(AvlTree *thiz);
+
+extern eFuncRtn avltree_get_size(AvlTree *thiz, SizeType *size);
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_insert_left(AvlTree *tree, AvlTreeElmt *element, const void *data);
+ * @brief       insert an element just before [element] in the binary tree
+ * @param[in]   tree        pointer of binary tree
+ * @param[in]   element     binary tree element
+ * @param[in]   data        data
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(1)
+ */
+/*****************************************************************************/
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_insert_right(AvlTree *tree, AvlTreeElmt *element, const void *data);
+ * @brief       insert an element just after [element] in the binary tree
+ * @param[in]   tree        pointer of binary tree
+ * @param[in]   element     binary tree element
+ * @param[in]   data        data
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(1)
+ */
+/*****************************************************************************/
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_remove_left(AvlTree *tree, AvlTreeElmt *element, void **data);
+ * @brief       remove [element] in the binary tree
+ * @param[in]   tree        pointer of binary tree
+ * @param[in]   element     binary tree element
+ * @param[out]  data        data stored in the element that was removed
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(1)
+ */
+/*****************************************************************************/
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_remove_right(AvlTree *tree, AvlTreeElmt *element, void **data);
+ * @brief       remove [element] in the binary tree
+ * @param[in]   tree        pointer of binary tree
+ * @param[in]   element     binary tree element
+ * @param[out]  data        data stored in the element that was removed
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(1)
+ */
+/*****************************************************************************/
+
+/*****************************************************************************/
+/**
+ * @func        FuncRet avltree_merge(AvlTree *merge, AvlTree *left, AvlTree *right, const void *data);
+ * @brief       merge two trees [left] and [right] into one tree [merge], using [data] as the root
+ * @param[out]  merge       pointer of the merged tree
+ * @param[in]   left        pointer of the left tree that is going to be merged
+ * @param[in]   right       pointer of the right tree that is going to be merged
+ * @param[in]   data        data that is going to be the root of the tree [merge]
+ * @return      FuncRet     see dtype.h enum @FuncRet
+ * @complexity  O(1)
+ */
+/*****************************************************************************/
+
+extern eFuncRtn avltree_preorder_traversal(AvlTree *thiz, VisitFunc visit, void *context);
+extern eFuncRtn avltree_inorder_traversal(AvlTree *thiz, VisitFunc visit, void *context);
+extern eFuncRtn avltree_postorder_traversal(AvlTree *thiz, VisitFunc visit, void *context);
+extern eFuncRtn avltree_levelorder_traversal(AvlTree *thiz, VisitFunc visit, void *context);
+
+extern eFuncRtn avltree_insert(AvlTree *thiz, const void *data);
+
+extern eFuncRtn avltree_remove(AvlTree *thiz, eBool free_flag, void **data);
+
+extern eFuncRtn avltree_lookup(AvlTree *thiz, void **data);
+
+extern eFuncRtn avltree_print(AvlTree *thiz, PrintFunc print);
+
+extern eFuncRtn avltree_print_figure(AvlTree *thiz, PrintFunc print);
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* AVLTREE_H */
+

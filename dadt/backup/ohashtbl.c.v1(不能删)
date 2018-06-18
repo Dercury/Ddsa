@@ -1,0 +1,203 @@
+/*****************************************************************************/
+/**
+ * @file        ohashtbl.c
+ * @brief       open-addressed hash table
+ * @version     1.0
+ * @author      dercury
+ * @date        2013-01-31
+ */
+/*****************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "common.h"
+#include "ohashtbl.h"
+
+#ifdef __cplusplus
+#if __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+#endif /* __cplusplus */
+
+/* Reserve a sentinel memory address for vacated elements */
+static char vacated = 0;
+
+#if CODE_SEPARATOR("Inner Function", 1)
+#endif
+
+#if CODE_SEPARATOR("Outer Function", 1)
+/*****************************************************************************/
+FuncRet ohashtbl_init(OHashTbl *htbl, size_t positions, HashFunc hash1,
+        HashFunc hash2, FreeFunc data_free, CmpFunc data_cmp)
+{
+    size_t  i = 0;
+
+    /* Allocate space for the hash table */
+    MEMORY_ALLOC_AND_INIT((htbl->table), (positions * sizeof(void *)));
+
+    /* Initialize each position */
+    htbl->positions = positions;
+    for (i = 0; i < htbl->positions; i++)
+    {
+        (htbl->table)[i] = NULL;
+    }
+
+    /* Set the vacated member to the sentinel memory address reserved for this */
+    htbl->vacated = &vacated;
+
+    /* Encapsulate the functions */
+    htbl->hash1 = hash1;
+    htbl->hash2 = hash2;
+    htbl->data_cmp = data_cmp;
+    htbl->data_free = data_free;
+
+    /* Initialize the number of elements in the table */
+    htbl->size = 0;
+
+    return RET_OK;
+}
+
+/*****************************************************************************/
+FuncRet ohashtbl_destroy(OHashTbl *htbl)
+{
+    size_t  i = 0;
+
+    if (NULL != htbl->data_free)
+    {
+        /* Call a user-defined function to free dynamically allocated data */
+        for (i = 0; i < htbl->positions; i++)
+        {
+            if (NULL != (htbl->table)[i] && htbl->vacated != (htbl->table)[i])
+            {
+                (htbl->data_free)((htbl->table)[i]);
+            }
+        }
+    }
+
+    /* Free the storage allocated for the hash table */
+    MEMORY_FREE(htbl->table);
+
+    /* No operations are allowed now, but clear the structure as a precaution */
+    memset(htbl, 0, sizeof(OHashTbl));
+    htbl = NULL;
+
+    return RET_OK;
+}
+
+/*****************************************************************************/
+FuncRet ohashtbl_insert(OHashTbl *htbl, const void *data)
+{
+    void    *temp = (void *)data;
+    size_t   position = 0, i = 0;
+
+    /* Do not exceed the number of positions in the table */
+    if (htbl->positions == htbl->size)
+    {
+        return RET_SPACE_FULL;
+    }
+
+    /* Do nothing if the data is already in the table */
+    if (RET_OK == ohashtbl_lookup(htbl, &temp))
+    {
+        return RET_ALREADY_EXIST;
+    }
+
+    /* Use double hashing to hash the key */
+    for (i = 0; i < htbl->positions; i++)
+    {
+        position = ((htbl->hash1)(temp) + (i * (htbl->hash2)(temp))) % (htbl->positions);
+        if (NULL == (htbl->table)[position] || htbl->vacated == (htbl->table)[position])
+        {
+            /* Insert the data into the table */
+            (htbl->table)[position] = temp;
+            htbl->size++;
+
+            return RET_OK;
+        }
+    }
+
+    /* Return that the hash functions were selected incorrectly */
+    return RET_ERR;
+}
+
+/*****************************************************************************/
+FuncRet ohashtbl_remove(OHashTbl *htbl, Bool free_flag, void **data)
+{
+    size_t   position = 0, i = 0;
+    void    *temp = *data;
+
+    /* Use double hashing to hash the key */
+    for (i = 0; i < htbl->positions; i++)
+    {
+        position = ((htbl->hash1)(temp) + (i * (htbl->hash2)(temp))) % (htbl->positions);
+        if (NULL == (htbl->table)[position])
+        {
+            /* Return that the data was not found */
+            return RET_NOT_EXIST;
+        }
+        else if (htbl->vacated == (htbl->table)[position])
+        {
+            /* Search beyond vacated positions */
+            continue;
+        }
+        else if (CMP_EQUAL == htbl->data_cmp(htbl->table[position], temp))
+        {
+            /* Pass back the data from the table */
+            *data = (htbl->table)[position];
+            (htbl->table)[position] = htbl->vacated;
+            htbl->size--;
+            if (TRUE == free_flag && NULL != htbl->data_free)
+            {
+                (htbl->data_free)((htbl->table)[position]);
+            }
+
+            return RET_OK;
+        }
+    }
+
+    /* Return that the data was not found */
+    return RET_NOT_EXIST;
+}
+
+/*****************************************************************************/
+FuncRet ohashtbl_lookup(OHashTbl *htbl, void **data)
+{
+    size_t   position = 0, i = 0;
+    void    *temp = *data;
+
+    /* Use double hashing to hash the key */
+    for (i = 0; i < htbl->positions; i++)
+    {
+        position = ((htbl->hash1)(temp) + (i * (htbl->hash2)(temp))) % (htbl->positions);
+        if (NULL == (htbl->table)[position])
+        {
+            /* Return that the data was not found */
+            return RET_UNFOUND;
+        }
+        else if (htbl->vacated == (htbl->table)[position])
+        {
+            /* Search beyond vacated positions */
+            continue;
+        }
+        else if (CMP_EQUAL == htbl->data_cmp(htbl->table[position], temp))
+        {
+            /* Pass back the data from the table */
+            *data = (htbl->table)[position];
+
+            return RET_OK;
+        }
+    }
+
+    /* Return that the data was not found */
+    return RET_UNFOUND;
+}
+
+#endif
+
+#ifdef __cplusplus
+#if __cplusplus
+}
+#endif /* __cplusplus */
+#endif /* __cplusplus */
+

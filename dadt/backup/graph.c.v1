@@ -1,0 +1,324 @@
+/*****************************************************************************/
+/**
+ * @file        graph.c
+ * @brief       
+ * @version     1.0
+ * @author      dercury
+ * @date        2012-02-04
+ */
+/*****************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "dpub.h"
+
+#include "dlist.h"
+#include "linkset.h"
+#include "graph.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+#if CODE_SEPARATOR("Inner Function", 1)
+/*****************************************************************************/
+typedef enum tagVertexColor
+{
+    VERTEX_WHITE,
+    VERTEX_GRAY,
+    VERTEX_BLACK,
+} eVertexColor;
+
+/* vertex and set of its adjacent vertexes */
+typedef struct tagGraphElmt
+{
+    void    *vertex;
+    LinkSet *adjacent;
+} GraphElmt;
+
+struct tagGraph
+{
+    SizeType vertex_count;
+    SizeType edge_count;
+    CmpFunc  vertex_cmp;
+    FreeFunc vertex_free;
+    DList *  adjacent_list;
+};
+
+typedef enum tagVertexStatus
+{
+    NONENTIRY_VERTEX = 0,
+    ISOLATED_VERTEX,
+    EDGE_VERTEX,
+} eVertexStatus;
+
+typedef struct tagVertexContext
+{
+    void    *vertex;
+    CmpFunc  vertex_cmp;
+    FreeFunc vertex_free;
+    eVertexStatus status;
+} VertexContext;
+
+/*****************************************************************************/
+static eCmpRtn cmp_graph_elmt(GraphElmt* elmt1, GraphElmt* elmt2, void *context)
+{
+    CmpFunc vertex_cmp = (CmpFunc)context;
+
+    return vertex_cmp(elmt1->vertex, elmt2->vertex, NULL);
+}
+
+/*****************************************************************************/
+static void free_graph_elmt(GraphElmt** elmt, void* context)
+{
+    FreeFunc vertex_free = (FreeFunc)context;
+
+    IF_ERROR_PRINT(linkset_destroy(&((*elmt)->adjacent)));
+    vertex_free(&((*elmt)->vertex), NULL);
+
+    free_memory((void **)elmt);
+
+    return;
+}
+
+/*****************************************************************************/
+static eFuncRtn cmp_vertex(void *context, void *data)
+{
+    GraphElmt *adj_data = (GraphElmt *)data;
+    VertexContext *vertex_context = (VertexContext *)context;
+    eCmpRtn cmp_rtn = (vertex_context->vertex_cmp)(adj_data->vertex, vertex_context->vertex, NULL);
+
+    if (CMP_EQUAL == cmp_rtn)
+    {
+        return FUNC_ALREADY_EXIST;
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn get_vertex_status(void *context, void *data)
+{
+    SizeType index = 0;
+    GraphElmt *adj_data = (GraphElmt *)data;
+    VertexContext *vertex_context = (VertexContext *)context;
+
+    switch (vertex_context->status)
+    {
+    case NONENTIRY_VERTEX:
+        if (CMP_EQUAL == (vertex_context->vertex_cmp)(adj_data->vertex, vertex_context->vertex, NULL))
+        {
+            vertex_context->status = ISOLATED_VERTEX;
+        }
+        else
+        {
+            if(FUNC_OK == dlist_get_by_value(adj_data->adjacent, vertex_context->vertex, &index))
+            {
+                vertex_context->status = EDGE_VERTEX;
+            }
+        }
+    	break;
+    case ISOLATED_VERTEX:
+        if(FUNC_OK == dlist_get_by_value(adj_data->adjacent, vertex_context->vertex, &index))
+        {
+            vertex_context->status = EDGE_VERTEX;
+        }
+        break;
+    case EDGE_VERTEX:
+        break;
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+#endif  /* CODE_SEPARATOR("Inner Function", 1) */
+
+#if CODE_SEPARATOR("Outer Function", 1)
+/*****************************************************************************/
+Graph * graph_create(FreeFunc vertex_free, CmpFunc vertex_cmp)
+{
+    Graph *thiz = NULL;
+
+    IF_ERROR_EXIT(alloc_memory((void **)&thiz, sizeof(Graph)));
+    thiz->vertex_count = 0;
+    thiz->edge_count   = 0;
+    thiz->vertex_cmp     = vertex_cmp;
+    thiz->vertex_free    = vertex_free;
+    thiz->adjacent_list = dlist_create(NULL, NULL);
+
+    return thiz;
+}
+
+/*****************************************************************************/
+eFuncRtn graph_destroy(Graph **thiz)
+{
+    GraphElmt *data = NULL;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    /* Remove each adjacent-list structure and destroy its adjacent list */
+    while (0 < dlist_get_size((*thiz)->adjacent_list))
+    {
+        IF_ERROR_RETURN(dlist_remove_head((*thiz)->adjacent_list, E_FALSE, (void **)&data));
+        IF_ERROR_RETURN(linkset_destroy(&(data->adjacent)));
+        if (NULL != (*thiz)->vertex_free)
+        {
+            ((*thiz)->vertex_free)((void **)&(data->vertex), NULL);
+        }
+        free_memory((void **)&data);
+    }
+    
+    /* Destroy the list of adjacent-list structures, which is now empty */
+    IF_ERROR_RETURN(dlist_destroy(&(*thiz)->adjacent_list));
+
+    free_memory((void **)thiz);
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+SizeType graph_get_vertex_num(const Graph *thiz)
+{
+    if (NULL == thiz)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return 0;
+    }
+
+    return thiz->vertex_count;
+}
+
+/*****************************************************************************/
+SizeType graph_get_edge_num(const Graph *thiz)
+{
+    if (NULL == thiz)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return 0;
+    }
+
+    return thiz->edge_count;
+}
+
+/*****************************************************************************/
+FreeFunc graph_get_free_func(const Graph *thiz)
+{
+    if (NULL == thiz)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return NULL;
+    }
+
+    return thiz->vertex_free;
+}
+
+/*****************************************************************************/
+void graph_set_free_func(Graph *thiz, FreeFunc vertex_free)
+{
+    if (NULL == thiz)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return;
+    }
+
+    thiz->vertex_free = vertex_free;
+}
+
+/*****************************************************************************/
+CmpFunc graph_get_cmp_func(const Graph *thiz)
+{
+    if (NULL == thiz)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return NULL;
+    }
+
+    return thiz->vertex_cmp;
+}
+
+/*****************************************************************************/
+void graph_set_cmp_func(Graph *thiz, CmpFunc vertex_cmp)
+{
+    if (NULL == thiz)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return;
+    }
+
+    thiz->vertex_cmp = vertex_cmp;
+}
+
+/*****************************************************************************/
+eFuncRtn graph_insert_vertex(Graph *thiz, const void *vertex)
+{
+    GraphElmt adjlist;
+    VertexContext vertex_context;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    /* Do not allow the insertion of duplicate vertexes. */
+    memset((void *)&vertex_context, 0, sizeof(VertexContext));
+    vertex_context.vertex = (void *)vertex;
+    vertex_context.vertex_cmp = thiz->vertex_cmp;
+    vertex_context.vertex_free = thiz->vertex_free;
+    vertex_context.status = NONENTIRY_VERTEX;
+    IF_ERROR_RETURN(dlist_foreach(thiz->adjacent_list, get_vertex_status, &vertex_context));
+    if (NONENTIRY_VERTEX != vertex_context.status)
+    {
+        return FUNC_ALREADY_EXIST;
+    }
+
+    /* Insert the vertex */
+    memset((void *)&adjlist, 0, sizeof(GraphElmt));
+    adjlist.vertex = (void *)vertex;
+    adjlist.adjacent = linkset_create(NULL, thiz->vertex_cmp);
+    IF_ERROR_RETURN(dlist_append_tail(thiz->adjacent_list, &adjlist));
+
+    /* Adjust the vertex count to account for the inserted vertex */
+    thiz->vertex_count++;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn graph_remove_vertex(Graph *thiz, void **vertex)
+{
+    GraphElmt adjlist;
+    VertexContext vertex_context;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(vertex);
+
+    /* Traverse each adjacency list and the vertices it contains. */
+    memset((void *)&vertex_context, 0, sizeof(VertexContext));
+    vertex_context.vertex = (void *)vertex;
+    vertex_context.vertex_cmp = thiz->vertex_cmp;
+    vertex_context.vertex_free = thiz->vertex_free;
+    vertex_context.status = NONENTIRY_VERTEX;
+    IF_ERROR_RETURN(dlist_foreach(thiz->adjacent_list, get_vertex_status, &vertex_context));
+    switch (vertex_context.status)
+    {
+    case NONENTIRY_VERTEX:
+        return FUNC_NOT_EXIST;
+        break;
+    case ISOLATED_VERTEX:
+        dlist_remove_by_value(thiz->adjacent_list, vertex, E_FALSE);
+        break;
+    case EDGE_VERTEX:
+        return FUNC_UNREACHABLE;
+        break;
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+

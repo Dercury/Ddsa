@@ -1,0 +1,463 @@
+
+typedef enum tagAvlFactor
+{
+    AVL_LEFT_HEAVY  = -1,
+    AVL_BALANCED    = 0,
+    AVL_RIGHT_HEAVY = 1,
+} eAvlFactor;
+
+typedef enum tagTreeChildPos
+{
+    TREE_CHILD_LEFT,
+    TREE_CHILD_RIGHT,
+} eTreeChildPos;
+
+typedef struct tagAvlTreeNode
+{
+    void                   *data;
+    struct tagAvlTreeNode  *left;
+    struct tagAvlTreeNode  *right;
+    eValid                  valid;
+    eAvlFactor              factor;
+} AvlTreeNode;
+
+typedef struct tagAvlTree
+{
+    AvlTreeNode            *root;
+    SizeType                size;
+    FreeFunc                data_free;
+    CmpFunc                 data_cmp;
+} AvlTree;
+
+static void left_left_case(AvlTreeNode **node)
+{
+    AvlTreeNode *left_child = (*node)->left;
+
+    (*node)->left = left_child->right;
+    left_child->right = *node;
+    
+    (*node)->factor = AVL_BALANCED;
+    left_child->factor = AVL_BALANCED;
+    
+    *node = left_child;
+
+    return;
+}
+
+static void right_right_case(AvlTreeNode **node)
+{
+    AvlTreeNode *right_child = (*node)->right;
+
+    (*node)->right = right_child->left;
+    right_child->left = *node;
+    
+    (*node)->factor = AVL_BALANCED;
+    right_child->factor = AVL_BALANCED;
+    
+    *node = right_child;
+    
+    return;
+}
+
+static void left_right_case(AvlTreeNode **node)
+{
+    right_right_case(&((*node)->left));
+    left_left_case(node);
+
+    switch ((*node)->factor)
+    {
+        case AVL_LEFT_HEAVY:
+            (*node)->right->factor = AVL_RIGHT_HEAVY;
+            break;
+        case AVL_RIGHT_HEAVY:
+            (*node)->left->factor = AVL_LEFT_HEAVY;
+            break;
+    }
+    (*node)->factor = AVL_BALANCED;
+    
+    return;
+}
+
+static void right_left_case(AvlTreeNode **node)
+{
+    left_left_case(&((*node)->right));
+    right_right_case(node);
+
+    switch ((*node)->factor)
+    {
+        case AVL_LEFT_HEAVY:
+            (*node)->right->factor = AVL_RIGHT_HEAVY;
+            break;
+        case AVL_RIGHT_HEAVY:
+            (*node)->left->factor = AVL_LEFT_HEAVY;
+            break;
+    }
+    (*node)->factor = AVL_BALANCED;
+    
+    return;
+}
+
+static void left_right_case2(AvlTreeNode **node)
+{
+    AvlTreeNode *left_child = (*node)->left;
+    AvlTreeNode *grand_child = left_child->right;
+
+    left_child->right = grand_child->left;
+    grand_child->left = left_child;
+    (*node)->left = grand_child->right;
+    grand_child->right = *node;
+
+    switch (grand_child->factor)
+    {
+        case AVL_LEFT_HEAVY:
+            (*node)->factor = AVL_RIGHT_HEAVY;
+            left_child->factor = AVL_BALANCED;
+            break;
+        case AVL_BALANCED:
+            (*node)->factor = AVL_BALANCED;
+            left_child->factor = AVL_BALANCED;
+            break;
+        case AVL_RIGHT_HEAVY:
+            (*node)->facotr = AVL_BALANCED;
+            left_child->factor = AVL_LEFT_HEAVY;
+            break;
+    }
+    grand_child->factor = AVL_BALANCED;
+
+    *node = grand_child;
+    
+    return;
+}
+
+static void right_left_case2(AvlTreeNode **node)
+{
+    AvlTreeNode *right_child = (*node)->right;
+    AvlTreeNode *grand_child = right_child->left;
+
+    right_child->left = grand_child->right;
+    grand_child->right = right_child;
+    (*node)->right = grand_child->left;
+    grand_child->left = *node;
+
+    switch (grand_child->factor)
+    {
+        case AVL_LEFT_HEAVY:
+            (*node)->factor = AVL_BALANCED;
+            right_child->factor = AVL_RIGHT_HEAVY;
+            break;
+        case AVL_BALANCED:
+            (*node)->factor = AVL_BALANCED;
+            right_child->factor = AVL_BALANCED;
+            break;
+        case AVL_RIGHT_HEAVY:
+            (*node)->facotr = AVL_LEFT_HEAVY;
+            right_child->factor = AVL_BALANCED;
+            break;
+    }
+    grand_child->factor = AVL_BALANCED;
+
+    *node = grand_child;
+    
+    return;
+}
+
+static eFuncRtn avltree_get_parent2(const void *data, AvlTreeNode *root, CmpFunc data_cmp, AvlTreeNode **parent, eTreeChildPos *pos)
+{
+    CmpRtn cmp_rslt = data_cmp(data, root->data);
+
+    if (CMP_EQUAL == cmp_rslt)
+    {
+        return FUNC_OK;
+    }
+    else if (CMP_LESS == cmp_rslt)
+    {
+        *parent = root;
+        *pos = TREE_CHILD_LEFT;
+        if (NULL == root->left)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            return avltree_get_parent2(data, root->left, data_cmp, parent, pos);
+        }
+    }
+    else if (CMP_MORE == cmp_rslt)
+    {
+        *parent = root;
+        *pos = TREE_CHILD_RIGHT;
+        if (NULL == root->right)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            return avltree_get_parent2(data, root->right, data_cmp, parent, pos);
+        }
+    }   
+}
+
+static eFuncRtn avltree_get_parent1(AvlTree *thiz, const void *data, AvlTreeNode **parent, eTreeChildPos *pos)
+{
+    CmpRtn cmp_rslt = (thiz->data_cmp)(data, thiz->root->data);
+
+    if (CMP_EQUAL == cmp_rslt)
+    {
+        *parent = NULL;
+        return FUNC_UNREACHABLE;
+    }
+    else if (CMP_LESS == cmp_rslt)
+    {
+        *parent = thiz->root;
+        *pos = TREE_CHILD_LEFT;
+        if (NULL == thiz->root->left)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            return avltree_get_parent2(data, thiz->root->left, thiz->data_cmp, parent, pos);
+        }
+    }
+    else if (CMP_MORE == cmp_rslt)
+    {
+        *parent = thiz->root;
+        *pos = TREE_CHILD_RIGHT;
+        if (NULL == thiz->root->right)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            return avltree_get_parent2(data, thiz->root->right, thiz->data_cmp, parent, pos);
+        }
+    }
+}
+
+static eFuncRtn avltree_inner_get_parent(AvlTreeNode *main_root, AvlTreeNode *sub_root, CmpFunc data_cmp, const void *data, AvlTreeNode **parent, eTreeChildPos *pos)
+{
+    CmpRtn cmp_rslt = data_cmp(data, sub_root->data);
+
+    if (CMP_EQUAL == cmp_rslt)
+    {
+        if (main_root == sub_root)
+        {
+            *parent = NULL;
+            return FUNC_UNREACHABLE;
+        }
+        else
+        {
+            return FUNC_OK;
+        }
+    }
+    else if (CMP_LESS == cmp_rslt)
+    {
+        *parent = sub_root;
+        *pos = TREE_CHILD_LEFT;
+        if (NULL == sub_root->left)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            return avltree_inner_get_parent(main_root, sub_root->left, data_cmp, data, parent, pos);
+        }
+    }
+    else if (CMP_MORE == cmp_rslt)
+    {
+        *parent = sub_root;
+        *pos = TREE_CHILD_RIGHT;
+        if (NULL == sub_root->right)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            return avltree_inner_get_parent(main_root, sub_root->right, data_cmp, data, parent, pos);
+        }
+    }   
+}
+
+static eFuncRtn avltree_get_parent(AvlTree *thiz, const void *data, AvlTreeNode **parent, eTreeChildPos *pos)
+{
+    return avltree_inner_get_parent(thiz->root, thiz->root, thiz->data_cmp, data, parent, pos);
+}
+
+static eFuncRtn avlTree_get_place(AvlTreeNode *parent, eTreeChildPos pos, AvlTreeNode **place)
+{
+    if (TREE_CHILD_LEFT == pos)
+    {
+        *place = parent->left;
+    }
+    else if (TREE_CHILD_RIGHT == pos)
+    {
+        *place = parent->right;
+    }
+        
+    return FUNC_OK;
+}
+
+eFuncRtn avltree_insert(AvlTree *thiz, const void *data)
+{
+    AvlTreeNode *node = NULL;
+    AvlTreeNode *parent = NULL;
+    AvlTreeNode *place = NULL;
+    eTreeChildPos pos = TREE_CHILD_LEFT;
+    eFuncRtn rtn = FUNC_OK;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+    
+    if (NULL == thiz->root)
+    {
+        IF_ERROR_RETURN(avltree_make_node(data, &node));
+        /* node->valid = E_VALID */
+        thiz->root = node;
+        thiz->size++;
+        return FUNC_OK;
+    }
+    else
+    {
+        rtn = avltree_get_parent(thiz, data, &parent, &pos);
+        if (FUNC_OK == rtn || FUNC_UNREACHABLE == rtn)
+        {
+            if (FUNC_OK == rtn)
+            {
+                IF_ERROR_RETURN(avlTree_get_place(parent, pos, &place));
+            }
+            else /* FUNC_UNREACHABLE == rtn */
+            {
+                place = thiz->root;
+            }
+            
+            if (E_VALID == place->valid)
+            {
+                return FUNC_ALREADY_EXIST;
+            }
+            else
+            {
+                if (NULL != thiz->data_free)
+                {
+                    (thiz->data_free)(place->data);
+                }
+                place->data = data;
+                place->valid = E_VALID;
+                return FUNC_OK;
+            }
+        }
+        else if (FUNC_NOT_EXIST == rtn)
+        {
+            IF_ERROR_RETURN(avlTree_get_place(parent, pos, &place));
+            IF_ERROR_RETURN(avltree_make_node(data, &node));
+            place = node;
+            thiz->size++;
+            return FUNC_OK;
+        }
+        else 
+        {
+            return FUNC_UNREACHABLE;
+        }
+    }
+    
+    return FUNC_OK;
+}
+
+eFuncRtn avltree_remove(AvlTree *thiz, void **data)
+{
+    eFuncRtn rtn = FUNC_OK;
+    AvlTreeNode *parent = NULL;
+    AvlTreeNode *place = NULL;
+    eTreeChildPos pos = TREE_CHILD_LEFT;
+    
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(data);
+
+    if (NULL == thiz->root)
+    {
+        return FUNC_NOT_EXIST;
+    }
+
+    rtn = avltree_get_parent(thiz, *data, &parent, &pos);
+    if (FUNC_OK == rtn || FUNC_UNREACHABLE == rtn)
+    {
+        if (FUNC_OK == rtn)
+        {
+            IF_ERROR_RETURN(avlTree_get_place(parent, pos, &place));
+        }
+        else /* FUNC_UNREACHABLE == rtn */
+        {
+            place = thiz->root;
+        }
+        
+        if (E_VALID == place->valid)
+        {
+            *data = place->data;
+            place->valid = E_UNVALID;
+            return FUNC_OK;
+        }
+        else
+        {
+            return FUNC_NOT_EXIST;
+        }
+    }
+    else if (FUNC_NOT_EXIST == rtn)
+    {
+        return FUNC_NOT_EXIST;
+    }
+    else 
+    {
+        return FUNC_UNREACHABLE;
+    }
+    
+    return FUNC_OK;
+}
+
+eFuncRtn avltree_lookup(AvlTree *thiz, void **data)
+{
+    eFuncRtn rtn = FUNC_OK;
+    AvlTreeNode *parent = NULL;
+    AvlTreeNode *place = NULL;
+    eTreeChildPos pos = TREE_CHILD_LEFT;
+    
+    PARAM_CHECK_NULL_POINTER(thiz);
+    PARAM_CHECK_NULL_POINTER(data);
+
+    if (NULL == thiz->root)
+    {
+        return FUNC_NOT_EXIST;
+    }
+
+    rtn = avltree_get_parent(thiz, *data, &parent, &pos);
+    if (FUNC_OK == rtn || FUNC_UNREACHABLE == rtn)
+    {
+        if (FUNC_OK == rtn)
+        {
+            IF_ERROR_RETURN(avlTree_get_place(parent, pos, &place));
+        }
+        else /* FUNC_UNREACHABLE == rtn */
+        {
+            place = thiz->root;
+        }
+        
+        if (E_VALID == place->valid)
+        {
+            *data = place->data;
+            return FUNC_OK;
+        }
+        else
+        {
+            return FUNC_NOT_FOUND;
+        }
+    }
+    else if (FUNC_NOT_EXIST == rtn)
+    {
+        return FUNC_NOT_EXIST;
+    }
+    else 
+    {
+        return FUNC_UNREACHABLE;
+    }
+    
+    return FUNC_OK;
+}
+
+

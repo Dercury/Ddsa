@@ -1,0 +1,330 @@
+/* doubly linked list
+ * @author: dercury
+ * @date: 2012-12-30 */
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#define DATA_TYPE int
+
+typedef struct tagDListNode
+{
+    DATA_TYPE data;
+    struct tagDListNode * prev;
+    struct tagDListNode * next;
+} DListNode;
+
+typedef DListNode * DList;
+
+DListNode * DbLkList_MakeNode(DATA_TYPE data)
+{
+    DListNode * pNode = (DListNode *)malloc(sizeof(DListNode));
+    if (NULL != pNode)
+    {
+        memset((void *)pNode, 0, sizeof(DListNode));
+        pNode->data = data;
+    }
+    else
+    {
+        printf("Malloc node memory failed!\r\n");
+        exit(-1);
+    }
+
+    return pNode;
+}
+
+void DbLkList_FreeNode(DListNode * pNode)
+{
+    free(pNode);
+}
+
+DList DbLkList_Create(void)
+{
+    DATA_TYPE input_data = 0;
+    DList new_list = NULL;
+    DListNode * pCurNode = NULL;
+    DListNode * pPrevNode = NULL;
+
+    printf("Please intput data of type-int, -999 to quit:\r\n");
+    while(0 < scanf("%d", &input_data) && -999 != input_data)
+    {
+        pCurNode = DbLkList_MakeNode(input_data);
+        if (NULL == new_list)
+        {
+            new_list = pCurNode;
+        }
+        else
+        {
+            pPrevNode->next = pCurNode;
+            pCurNode->prev = pPrevNode;
+        }
+        pPrevNode = pCurNode;
+        pCurNode = NULL;
+    }
+
+    return new_list;
+}
+
+void DbLkList_Destroy(DList * pList)
+{
+    DListNode * pCurNode = NULL;
+    DListNode * pNextNode = NULL;
+
+    if (NULL == pList)
+    {
+        printf("Error: please give me a pList!\n");
+        exit(-1);
+    }
+
+    if (NULL == *pList)
+    {
+        return;
+    }
+
+    pCurNode = *pList;
+    while (NULL != pCurNode)
+    {
+        printf("free node: %d\n", pCurNode->data);
+        pNextNode = pCurNode->next;
+        if (NULL != pNextNode)
+        {
+            pNextNode->prev = NULL;
+        }
+        DbLkList_FreeNode(pCurNode);
+        pCurNode = pNextNode;
+    }
+    *pList = NULL;
+    printf("free pList finished!\n");
+}
+
+void DbLkList_Print(DList list)
+{
+    int i = 0;
+    DListNode * pCurNode = list;
+    for(i = 0; i < 20; i++)
+    {
+        printf("-");
+    }
+    printf("start:\n");
+    while (NULL != pCurNode)
+    {
+        printf("%d\r\n", pCurNode->data);
+        pCurNode = pCurNode->next;
+    }
+    printf("end!\n");
+}
+
+DList DbLkList_InsertByIndex(DList list, DATA_TYPE data, unsigned int index)
+{
+    DListNode *pNode = DbLkList_MakeNode(data);
+    unsigned int i = 0;
+    DListNode *pPrevNode = NULL;
+    DListNode *pCurNode = list;
+
+    if (NULL == list)
+    {
+        list = pNode;
+        return list;
+    }
+    
+    if (0 == index)
+    {
+        pNode->next = list;
+        list->prev = pNode;
+        list = pNode;
+        return list;
+    }
+
+    while (i++ < index && NULL != pCurNode)
+    {
+        pPrevNode = pCurNode;
+        pCurNode = pCurNode->next;
+    }
+    if (NULL == pCurNode)
+    {
+        printf("index = %d > length of list = %d\n", index, i - 1);
+        return list;
+    }
+
+    pNode->next = pCurNode;
+    pPrevNode->next = pNode;
+    pNode->prev = pPrevNode;
+    pCurNode->prev = pNode;
+
+    return list;
+}
+
+DList DbLkList_InsertByValue(DList list, DATA_TYPE data)
+{
+    DListNode *pNode = DbLkList_MakeNode(data);
+    DListNode *pCurNode = list;
+    DListNode *pPrevNode = NULL;
+
+    if (NULL == list)
+    {
+        list = pNode;
+        return list;
+    }
+    
+    if (data <= list->data)
+    {
+        pNode->next = list;
+        list->prev = pNode;
+        list = pNode;
+        return list;
+    }
+
+    while (NULL != pCurNode && data > pCurNode->data)
+    {
+        pPrevNode = pCurNode;
+        pCurNode = pCurNode->next;
+    }
+    if (NULL != pCurNode)
+    {
+        pCurNode->prev = pNode;
+        pNode->next = pCurNode;
+    }
+    pPrevNode->next = pNode;
+    pNode->prev = pPrevNode;
+
+    return list;
+}
+
+DList DbLkList_DelByIndex(DList list, unsigned int index)
+{
+    DListNode * pCurNode = list;
+    DListNode * pPrevNode = NULL;
+    unsigned int i = 0;
+
+    if (NULL == list)
+    {
+        printf("List is already empty!\n");
+        return NULL;
+    }
+
+    if (0 == index)
+    {
+        printf("delete list head\n");
+        list = pCurNode->next;
+        list->prev = NULL;
+        DbLkList_FreeNode(pCurNode);
+        return list;
+    }
+
+    while (NULL != pCurNode && i++ < index)
+    {
+        pPrevNode = pCurNode;
+        pCurNode = pCurNode->next;
+    }
+    if (NULL == pCurNode)
+    {
+        printf("delete failed because of illegal index = %d!\n", index);
+        return list;
+    }
+    pPrevNode->next = pCurNode->next;
+    if (NULL != pCurNode->next)
+    {
+        pCurNode->next->prev = pPrevNode;
+    }
+    DbLkList_FreeNode(pCurNode);
+
+    return list;
+}
+
+DList DbLkList_DelByValue(DList list, DATA_TYPE data)
+{
+    DListNode * pCurNode = list;
+    DListNode * pPrevNode = NULL;
+
+    if (NULL == list)
+    {
+        printf("List is already empty!\n");
+        return NULL;
+    }
+
+    if (data == list->data)
+    {
+        printf("delete list head\n");
+        list = pCurNode->next;
+        list->prev = NULL;
+        DbLkList_FreeNode(pCurNode);
+        return list;
+    }
+
+    while (NULL != pCurNode && data != pCurNode->data)
+    {
+        pPrevNode = pCurNode;
+        pCurNode = pCurNode->next;
+    }
+    if (NULL == pCurNode)
+    {
+        printf("delete failed because not found %d!\n", data);
+        return list;
+    }
+    pPrevNode->next = pCurNode->next;
+    if (NULL != pCurNode->next)
+    {
+        pCurNode->next->prev = pPrevNode;
+    }
+
+    return list;
+}
+
+DList DbLkList_Sort(DList list)
+{
+    return list;
+}
+
+int main(int argc, char ** argv)
+{
+    DList list = DbLkList_Create();
+    DbLkList_Print(list);
+
+    printf("\ninsert 15 by index = 0\n");
+    list = DbLkList_InsertByIndex(list, 15, 0);
+    DbLkList_Print(list);
+
+    printf("\ninsert -21 by index = 1\n");
+    list = DbLkList_InsertByIndex(list, -21, 1);
+    DbLkList_Print(list);
+
+    printf("\ninsert -999 by index = 100\n");
+    list = DbLkList_InsertByIndex(list, -999, 100);
+    DbLkList_Print(list);
+
+    printf("\ninsert -999 by value\n");
+    list = DbLkList_InsertByValue(list, -999);
+    DbLkList_Print(list);
+
+    printf("\ninsert 5 by value\n");
+    list = DbLkList_InsertByValue(list, 5);
+    DbLkList_Print(list);
+
+    printf("\ninsert 999 by value\n");
+    list = DbLkList_InsertByValue(list, 999);
+    DbLkList_Print(list);
+
+    printf("\ndel 999 by value\n");
+    list = DbLkList_DelByValue(list, 999);
+    DbLkList_Print(list);
+
+    printf("\ndel -999 by value\n");
+    list = DbLkList_DelByValue(list, -999);
+    DbLkList_Print(list);
+
+    printf("\ndel by index = 0\n");
+    list = DbLkList_DelByIndex(list, 0);
+    DbLkList_Print(list);
+
+    printf("\ndel by index = 2\n");
+    list = DbLkList_DelByIndex(list, 2);
+    DbLkList_Print(list);
+
+    printf("\ndestroy list\n");
+    DbLkList_Destroy(&list);
+    DbLkList_Print(list);
+ 
+    return 0;
+}
+

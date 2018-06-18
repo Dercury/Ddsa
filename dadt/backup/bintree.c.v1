@@ -1,0 +1,383 @@
+/*****************************************************************************/
+/**
+ * @file        btree.h
+ * @brief       binary tree
+ * @version     1.0
+ * @author      dercury
+ * @date        2012-02-04
+ */
+/*****************************************************************************/
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "dpub.h"
+#include "dlist.h"      /* used by biree_get_all_data */
+#include "seqqueue.h"   /* used by bitree_levelorder_traversal */
+#include "bitree.h"
+#include "bitree_in.h"
+#include "bintree.h"
+#include "bintree_in.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+#if CODE_SEPARATOR("Inner Function", 1)
+/*****************************************************************************/
+static eFuncRtn bintree_get_parent(BinTreeNode *root, const void *data, CmpFunc data_cmp, BinTreeNode **parent, eBiTreeChildPos *pos)
+{
+    eCmpRtn rtn = CMP_EQUAL;
+
+    rtn = data_cmp(data, root->data);
+    if (CMP_EQUAL == rtn)
+    {
+        return FUNC_ALREADY_EXIST;
+    }
+    else if (CMP_LESS == rtn)
+    {
+        *parent = root;
+        *pos = BITREE_CHILD_LEFT;
+        if (NULL == root->left)
+        {
+            return FUNC_NOT_EXIST;
+        }
+        else
+        {
+            bintree_get_parent(root->left, data, data_cmp, parent, pos);
+        }
+    }
+    else if (CMP_MORE == rtn)
+    {
+        *parent = root;
+        *pos = BITREE_CHILD_RIGHT;
+        if (NULL == root->right)
+        {
+            return FUNC_NOT_EXIST;
+        } 
+        else
+        {
+            bintree_get_parent(root->right, data, data_cmp, parent, pos);
+        }
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_get_place(CmpFunc data_cmp, const void *data, BinTreeNode ***place)
+{
+    eCmpRtn cmp_rslt = CMP_EQUAL;
+    eFuncRtn func_rslt = FUNC_ERROR;
+
+    if (NULL == **place)
+    {
+        func_rslt = FUNC_NOT_EXIST;
+    }
+    else
+    {
+        cmp_rslt = data_cmp(data, (**place)->data);
+        switch (cmp_rslt)
+        {
+        case CMP_EQUAL:
+            func_rslt = FUNC_ALREADY_EXIST;
+        	break;
+        case CMP_LESS:
+            *place = &((**place)->left);
+            func_rslt = bintree_get_place(data_cmp, data, place);
+            break;
+        case CMP_MORE:
+            *place = &((**place)->right);
+            func_rslt = bintree_get_place(data_cmp, data, place);
+            break;
+        }
+    }
+
+    return func_rslt;
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_get_max_node(BinTreeNode *root, BinTreeNode **max)
+{
+    BinTreeNode *iter = NULL;
+
+    for (iter = root; NULL != iter->right; iter = iter->right)
+    {
+        /* nothing need to be done */
+    }
+    *max = iter;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_get_min_node(BinTreeNode *root, BinTreeNode **min)
+{
+    BinTreeNode *iter = NULL;
+
+    for (iter = root; NULL != iter->left; iter = iter->left)
+    {
+        /* nothing need to be done */
+    }
+    *min = iter;
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_remove_root(BinTree *thiz, eBool free_flag)
+{
+    BinTreeNode *current = bitree_get_root(thiz);
+    BinTreeNode *prev = NULL;
+
+    if (NULL == current->left)
+    {
+        thiz->root = current->right;
+    }
+    else if (NULL == current->right)
+    {
+        thiz->root = current->left;
+    }
+    else
+    {
+        IF_ERROR_RETURN(bintree_get_max_node(current->left, &prev));
+        prev->right = current->right;
+        thiz->root = current->left;
+    }
+    thiz->size--;
+
+    return bitree_free_node(&current, free_flag, thiz->data_free);
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_remove_leaf(BinTree *thiz, BinTreeNode *parent, eBiTreeChildPos pos, eBool free_flag)
+{
+    BinTreeNode *current = NULL;
+
+    if (BITREE_CHILD_LEFT == pos)
+    {
+        current = parent->left;
+        parent->left = NULL;
+    } 
+    else if (BITREE_CHILD_RIGHT == pos)
+    {
+        current = parent->right;
+        parent->right = NULL;
+    }
+    thiz->size--;
+
+    return bitree_free_node(&current, free_flag, thiz->data_free);
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_remove_bole(BinTree *thiz, BinTreeNode *parent, eBiTreeChildPos pos, eBool free_flag)
+{
+    BinTreeNode *current = NULL;
+    BinTreeNode *prev = NULL;
+
+    if (BITREE_CHILD_LEFT == pos)
+    {
+        current = parent->left;
+        if (NULL == current->left)
+        {
+            parent->left = current->right;
+        }
+        else if (NULL == current->right)
+        {
+            parent->left = current->left;
+        }
+        else
+        {
+            IF_ERROR_RETURN(bintree_get_max_node(current->left, &prev));
+            prev->right = current->right;
+            parent->left = current->left;
+        }
+    } 
+    else if (BITREE_CHILD_RIGHT == pos)
+    {
+        current = parent->right;
+        if (NULL == current->left)
+        {
+            parent->right = current->right;
+        } 
+        else if (NULL == current->right)
+        {
+            parent->right = current->left;
+        }
+        else
+        {
+            IF_ERROR_RETURN(bintree_get_max_node(current->left, &prev));
+            prev->right = current->right;
+            parent->right = current->left;
+        }
+    }
+    thiz->size--;
+
+    return bitree_free_node(&current, free_flag, thiz->data_free);
+}
+
+/*****************************************************************************/
+static eFuncRtn bintree_remove_child(BinTree *thiz, BinTreeNode *parent, eBiTreeChildPos pos, eBool free_flag, void **data)
+{
+    BinTreeNode *current = NULL;
+
+    if (BITREE_CHILD_LEFT == pos)
+    {
+        current = parent->left;
+    } 
+    else if (BITREE_CHILD_RIGHT == pos)
+    {
+        current = parent->right;
+    }
+    *data = current->data;
+
+    if (bitree_is_leaf(current))
+    {
+        return bintree_remove_leaf(thiz, parent, pos, free_flag);
+    }
+    else
+    {
+        return bintree_remove_bole(thiz, parent, pos, free_flag);
+    }
+}
+
+#endif
+
+#if CODE_SEPARATOR("Outer Function", 1)
+/*****************************************************************************/
+void * bintree_get_max(const BinTree *thiz)
+{
+    BinTreeNode *iter = NULL;
+
+    if (NULL == thiz || NULL == thiz->root)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return NULL;
+    }
+
+    for (iter = thiz->root; NULL != iter->right; iter = iter->right)
+    {
+        /* nothing need to be done */
+    }
+
+    return iter->data;
+}
+
+/*****************************************************************************/
+void * bintree_get_min(const BinTree *thiz)
+{
+    BinTreeNode *iter = NULL;
+
+    if (NULL == thiz || NULL == thiz->root)
+    {
+        IF_ERROR_PRINT(FUNC_PARAM_NULL_POINTER);
+        return NULL;
+    }
+
+    for (iter = thiz->root; NULL != iter->left; iter = iter->left)
+    {
+        /* nothing need to be done */
+    }
+
+    return iter->data;
+}
+
+/*****************************************************************************/
+eFuncRtn bintree_insert(BinTree *thiz, const void *data)
+{
+    BinTreeNode *parent = NULL;
+    eBiTreeChildPos   pos = BITREE_CHILD_LEFT;
+    eFuncRtn    rtn = FUNC_OK;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    if (NULL != thiz->root)
+    {
+        rtn = bintree_get_parent(thiz->root, data, thiz->data_cmp, &parent, &pos);
+        if (FUNC_ALREADY_EXIST == rtn)
+        {
+            return rtn;
+        }
+    }
+    IF_ERROR_RETURN(bintree_insert_child(thiz, parent, pos, data));
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn bintree_remove(BinTree *thiz, eBool free_flag, void **data)
+{
+    BinTreeNode *parent = NULL;
+    BinTreeNode *prev = NULL;
+    BinTreeNode *current = NULL;
+    eBiTreeChildPos   pos = BITREE_CHILD_LEFT;
+    eFuncRtn    rtn = FUNC_OK;
+
+    PARAM_CHECK_NULL_POINTER(thiz);
+
+    if (NULL == thiz->root)
+    {
+        return FUNC_NOT_EXIST;
+    }
+    else if (CMP_EQUAL == (thiz->data_cmp)(thiz->root->data, *data))
+    {
+        *data = thiz->root->data;
+        return bintree_remove_root(thiz, free_flag);
+    }
+    else
+    {
+        rtn = bintree_get_parent(thiz->root, *data, thiz->data_cmp, &parent, &pos);
+        if (FUNC_NOT_EXIST == rtn)
+        {
+            return rtn;
+        }
+        else
+        {
+            return bintree_remove_child(thiz, parent, pos, free_flag, data);
+        }
+    }
+}
+
+/*****************************************************************************/
+eFuncRtn bintree_lookup(BinTree *thiz, void **data)
+{
+    eFuncRtn    rtn = FUNC_OK;
+    BinTreeNode *parent = NULL;
+    eBiTreeChildPos   pos = BITREE_CHILD_LEFT;
+
+    if (NULL == thiz->root)
+    {
+        return FUNC_NOT_EXIST;
+    }
+    else if (CMP_EQUAL == (thiz->data_cmp)(thiz->root->data, *data))
+    {
+        *data = thiz->root->data;
+    }
+    else
+    {
+        rtn = bintree_get_parent(thiz->root, *data, thiz->data_cmp, &parent, &pos);
+        if (FUNC_NOT_EXIST == rtn)
+        {
+            return rtn;
+        }
+        else if (BITREE_CHILD_LEFT == pos)
+        {
+            *data = parent->left->data;
+        }
+        else if (BITREE_CHILD_RIGHT == pos)
+        {
+            *data = parent->right->data;
+        }
+    }
+
+    return FUNC_OK;
+}
+
+/*****************************************************************************/
+
+#endif
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+

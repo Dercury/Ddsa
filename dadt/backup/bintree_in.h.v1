@@ -1,0 +1,29 @@
+/*****************************************************************************/
+/**
+ * @file        bintree.h
+ * @brief       binary tree
+ * @version     1.0
+ * @author      dercury
+ * @date        2012-02-04
+ */
+/*****************************************************************************/
+#ifndef BINTREE_INC
+#define BINTREE_INC
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+/*****************************************************************************/
+typedef BiTreeNode BinTreeNode;
+
+/*****************************************************************************/
+#define bintree_insert_child     bitree_insert_child
+
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* BINTREE_INC */
+
