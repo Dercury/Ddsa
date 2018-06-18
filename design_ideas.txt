@@ -1,0 +1,19 @@
+
+1.Functionality:
+Modules should be devided by their functions but not types.
+
+2.Encapsulation:
+Do not reveal any information that users needn't to know,
+even very tiny information.
+
+3.Indepedence:
+Header files should be indepedent from other headers, that is,
+one header file should be able to be used without letting users including
+other headers before it.
+Modules should be indepedent from other modules, that is, one module should
+work well without other modules.
+
+4.Expansibility:
+Requirements change.
+
+

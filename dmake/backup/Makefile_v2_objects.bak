@@ -1,0 +1,154 @@
+# Adjust the following if necessary
+# TARGET is the executable target's filename
+# LIBS is a list of libraries to link in (e.g. alleg, stdcx, iostr, etc)
+TARGET_PATH:=
+TARGET:=test_algorithms
+LIBS:=
+
+###################################################################################################
+# code paths
+CODE_ROOT_PATH:=$(PWD)/..
+
+###################################################################################################
+# header file path
+HEADER_PATH:=$(CODE_ROOT_PATH)/common
+HEADER_PATH+=$(CODE_ROOT_PATH)/algorithms/header
+HEADER_PATH+=$(CODE_ROOT_PATH)/dtest/header
+HEADER_PATH+=$(CODE_ROOT_PATH)/test_algorithms/header
+
+# .h files
+# useless, because compilation uses "INCLUDES" but not "HEADERS"
+HEADERS:=$(shell find $(HEADER_PATH) -maxdepth 1 -name "*.h")
+
+# include path used for compiler
+INCLUDES:=$(foreach dir, $(HEADER_PATH), $(addprefix -I, $(dir)))
+
+###################################################################################################
+# source file path
+SOURCE_PATH:=$(CODE_ROOT_PATH)/common
+SOURCE_PATH+=$(CODE_ROOT_PATH)/algorithms/source
+SOURCE_PATH+=$(CODE_ROOT_PATH)/dtest/source
+SOURCE_PATH+=$(CODE_ROOT_PATH)/test_algorithms/source
+
+# .c files
+# "SOURCE_PATH" can only have top directories, or there will be duplicated filenames
+#SOURCES:=$(shell find $(SOURCE_PATH) -name "*.c")  	
+
+SOURCES:=$(shell find $(SOURCE_PATH) -maxdepth 1 -name "*.c")
+
+#SOURCES:=$(shell find $(SOURCE_PATH) -name "*.c" | sort | uniq)
+#SOURCES+=$(shell find $(SOURCE_PATH) -name "*.cpp" | sort | uniq)
+
+###################################################################################################
+# object file path
+OBJECT_PATH:=$(PWD)/object
+$(shell if ! [ -d $(OBJECT_PATH) ]; then mkdir -p $(OBJECT_PATH); fi)
+
+# .o files
+OBJECTS:=
+DEPENDS:=
+ifneq ($(SOURCES),)
+#OBJECTS:=$(patsubst %.c,%.o,$(SOURCES))
+#OBJECTS:=$(patsubst %.c,%.o,$(patsubst %.cpp,%.o,$(SOURCES)))
+OBJECTS:=$(patsubst $(CODE_ROOT_PATH)%,$(OBJECT_PATH)%,$(patsubst %.c,%.o,$(SOURCES)))
+
+#DEPENDS:=$(patsubst %.c,%.d,$(SOURCES))
+
+#DEPENDS:=$(patsubst %.o,%.d,$(OBJECTS))
+DEPENDS:=$(OBJECTS:.o=.d)
+endif
+
+###################################################################################################
+# variables
+CC:=gcc
+#CC:=g++
+#CPPFLAGS+=-MM
+CFLAGS:=-g -Wall -O3
+#CXXFLAGS:=$(CFLAGS)
+RM-F:=rm -f
+
+###################################################################################################
+.PHONY: all run deps objs clean veryclean rebuild install uninstall test
+
+all : $(TARGET)
+	@echo SUCCESS!
+
+run : all
+	./$(TARGET)
+
+deps:$(DEPENDS)
+
+objs:$(OBJECTS)
+
+clean:
+	@$(RM-F) $(OBJECTS)
+	@$(RM-F) $(DEPENDS)
+
+veryclean:clean
+	@$(RM-F) $(TARGET)
+	@$(RM-F) -r $(OBJECT_PATH)
+
+rebuild:veryclean all
+
+install:$(TARGET)
+
+uninstall:
+	
+
+test:
+	@echo "CODE_ROOT_PATH=$(CODE_ROOT_PATH)"
+	@echo
+	@echo "HEADER_PATH=$(HEADER_PATH)"
+	@echo
+	@echo "SOURCE_PATH=$(SOURCE_PATH)"
+	@echo
+	@echo "OBJECT_PATH=$(OBJECT_PATH)"
+	@echo
+	@echo "HEADERS=$(HEADERS)"
+	@echo
+	@echo "SOURCES=$(SOURCES)"
+	@echo
+	@echo "OBJECTS=$(OBJECTS)"
+	@echo
+	@echo "DEPENDS=$(DEPENDS)"
+	@echo
+	@echo "INCLUDES=$(INCLUDES)"
+
+###################################################################################################
+#$(OBJECTS):$(OBJECT_PATH)/%.o:$(OBJECT_PATH)/%.d:$(CODE_ROOT_PATH)/%.c
+#$(OBJECTS):%.o:%.c
+$(OBJECTS) : $(OBJECT_PATH)/%.o : $(CODE_ROOT_PATH)/%.c
+	@echo ---- $(@F) ----
+	$(CC) -c $(CPPFLAGS) $(CFLAGS) $(INCLUDES) $< -o $@
+	@echo 
+
+#$(OBJECTS) : %.o : %.cpp
+#	$(CC) -c $(CPPFLAGS) $(CFLAGS) $(INCLUDES) $< -o $@
+
+$(TARGET) : $(OBJECTS)
+	@echo ---- $(@F) ----
+	$(CC) $(CPPFLAGS) $(CFLAGS) $(INCLUDES) $^ -o $@
+	@echo 
+
+###################################################################################################
+-include $(DEPENDS)
+
+define gen_dep
+set -e; rm -f $@; \
+$(CC) -MM $(CPPFLAGS) $(INCLUDES) $< > $@.$$$$; \
+sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
+rm -f $@.$$$$
+endef
+
+$(DEPENDS):$(OBJECT_PATH)/%.d : $(CODE_ROOT_PATH)/%.c
+	@echo ---- $(@F) ----
+#	if ! [ -d $(*D) ]; then mkdir -p $(*D); fi
+	if ! [ -d $(OBJECT_PATH)/$(*D) ]; then mkdir -p $(OBJECT_PATH)/$(*D); fi
+	$(gen_dep)
+	@echo 
+
+#%.d: %.cpp
+#	$(gen_dep)
+
+####################################### THE END ###################################################
+

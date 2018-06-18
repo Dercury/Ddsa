@@ -1,0 +1,437 @@
+/*****************************************************************************/
+/**
+ * @file        dpub.h
+ * @brief       common definition
+ * @version     1.0
+ * @author      dercury
+ * @date        2013-02-05
+ */
+/*****************************************************************************/
+#ifndef DPUB_H
+#define DPUB_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+/*****************************************************************************/
+typedef char                    int8;
+typedef short                   int16;
+typedef int                     int32;
+typedef long long               int64;
+
+typedef unsigned char           uint8;
+typedef unsigned short          uint16;
+typedef unsigned int            uint32;
+typedef unsigned long long      uint64;
+
+typedef uint32                  size_type;
+
+/*****************************************************************************/
+typedef enum tagBool
+{
+    E_FALSE = 0,
+    E_TRUE,
+} eBool;
+
+typedef enum tagEnable
+{
+    E_DISABLED = 0,
+    E_ENABLED,
+} eEnable;
+
+typedef enum tagValid
+{
+    E_INVALID = 0,
+    E_VALID,
+} eValid;
+
+/*****************************************************************************/
+/**
+ * @agreement   Every function should return a value except very special ones.
+ */
+/*****************************************************************************/
+typedef enum tagFuncRtn
+{
+    RTN_OK = 0,
+    RTN_ERR,            /* common error */
+    RTN_PARAM_NULL_PTR,
+    RTN_PARAM_MIN,
+    RTN_PARAM_MAX,
+    RTN_PARAM_RANGE,
+    RTN_PARAM_EQUAL,
+    RTN_PARAM_UNEQUAL,
+    RTN_PARAM_ELSE,
+    RTN_NULL_PTR,
+    RTN_MALLOC,
+    RTN_UNFOUND,
+    RTN_NOT_EXIST,
+    RTN_ALREADY_EXIST,
+    RTN_NOT_SUPPORT,
+    RTN_UNREACHABLE,
+    RTN_SPACE_FULL,
+    RTN_BUTT,
+} eFuncRtn;
+
+/*****************************************************************************/
+typedef enum tagCmpRtn
+{
+    CMP_EQUAL,
+    CMP_MORE,
+    CMP_LESS,
+} eCmpRtn;
+
+/*****************************************************************************/
+typedef enum tagPrintLevel
+{
+    PRINT_ERROR = 0,
+    PRINT_WARN,
+    PRINT_INFO,
+} ePrintLevel;
+
+/*****************************************************************************/
+char * enum2string_enable(eEnable en);
+char * enum2string_valid(eValid v);
+char * enum2string_funcrtn(eFuncRtn ret);
+char * enum2string_cmprtn(eCmpRtn ret);
+
+char * enum_string_debuglevel(ePrintLevel level);
+eFuncRtn debug_level_set(ePrintLevel level);
+eFuncRtn debug_level_get(ePrintLevel *level);
+
+/*****************************************************************************/
+/* code separator */
+#define CODE_SEPARATOR(tag, enable)         (enable)
+
+/*****************************************************************************/
+#define SHORT_FILENAME          short_filename(__FILE__)
+
+#ifdef OS_WIN32
+
+#define POS_PRINT(format, ...) \
+    printf("<file: %s, function: %s, line: %u>\r\n" format, \
+            SHORT_FILENAME, __FUNCTION__, __LINE__, __VA_ARGS__)
+#define DEBUG_PRINT(level, format, ...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            printf("%s: " format, enum_string_debuglevel(level), __VA_ARGS__); \
+        } \
+    } while(0)
+
+#define DEBUG_POS_PRINT(level, format, ...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            POS_PRINT("%s: " format, enum_string_debuglevel(level), __VA_ARGS__);\
+        } \
+    } while(0)
+
+#define DEBUG_CALL(level, function, ...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            printf("%s: \r\n", enum_string_debuglevel(level)); \
+            function(__VA_ARGS__); \
+        } \
+    } while(0)
+
+#define DEBUG_POS_CALL(level, function, ...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            POS_PRINT("%s: \r\n", enum_string_debuglevel(level)); \
+            function(__VA_ARGS__); \
+        } \
+    } while(0)
+
+#include <windows.h>
+
+#define COLOR_NORMAL    FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+#define COLOR_BLACK     0
+#define COLOR_GRAY      /* ? */
+#define COLOR_RED       FOREGROUND_RED
+#define COLOR_GREEN     FOREGROUND_GREEN
+#define COLOR_YELLOW    FOREGROUND_RED | FOREGROUND_GREEN
+#define COLOR_BLUE      FOREGROUND_BLUE
+#define COLOR_MAGENTA   FOREGROUND_RED | FOREGROUND_BLUE
+#define COLOR_AQUA      FOREGROUND_GREEN | FOREGROUND_BLUE
+#define COLOR_WHITE     FOREGROUND_RED | FOREGROUND_GREEN | FOREGROUND_BLUE
+#define COLOR_BLINK     FOREGROUND_INTENSITY
+
+BOOL SetConsoleColor(WORD wAttribute);
+
+#define COLOR_PRINT(color, format, ...) \
+    do \
+    { \
+        SetConsoleColor(color); \
+        printf(format, __VA_ARGS__); \
+        SetConsoleColor(COLOR_NORMAL); \
+    } while(0)
+
+#define COLOR_POS_PRINT(color, format, ...) \
+    do \
+    { \
+        SetConsoleColor(color); \
+        POS_PRINT(format, __VA_ARGS__); \
+        SetConsoleColor(COLOR_NORMAL); \
+    } while(0)
+
+#define COLOR_DEBUG_PRINT(level, format, ...) \
+    do \
+    { \
+        switch (level) \
+        { \
+        case PRINT_ERROR: \
+            SetConsoleColor(COLOR_RED); \
+            break; \
+        case PRINT_WARN: \
+            SetConsoleColor(COLOR_YELLOW); \
+            break; \
+        case PRINT_INFO: \
+            SetConsoleColor(COLOR_GREEN); \
+            break; \
+        default: \
+            SetConsoleColor(COLOR_NORMAL); \
+            break; \
+        } \
+        DEBUG_POS_PRINT(level, format, __VA_ARGS__); \
+        SetConsoleColor(COLOR_NORMAL); \
+    } while(0)
+
+#endif /* OS_WIN32 */
+
+#ifdef OS_LINUX
+
+#define POS_PRINT(format, args...) \
+    printf("<file: %s, function: %s, line: %u>\r\n" format, \
+            SHORT_FILENAME, __FUNCTION__, __LINE__, ##args)
+
+#define DEBUG_PRINT(level, format, args...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            printf("%s: " format, enum_string_debuglevel(level), ##args);\
+        } \
+    } while(0)
+
+#define DEBUG_POS_PRINT(level, format, args...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            POS_PRINT("%s: " format, enum_string_debuglevel(level), ##args);\
+        } \
+    } while(0)
+
+#define DEBUG_CALL(level, function, args...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            printf("%s: \r\n", enum_string_debuglevel(level)); \
+            function(##args); \
+        } \
+    } while(0)
+
+#define DEBUG_POS_CALL(level, function, args...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            POS_PRINT("%s: \r\n", enum_string_debuglevel(level)); \
+            function(##args); \
+        } \
+    } while(0)
+
+#define COLOR_NORMAL    "\033[0m"
+#define COLOR_BLACK     "\033[30m"
+#define COLOR_GRAY      "\033[1;30m"
+#define COLOR_RED       "\033[1;31m"
+#define COLOR_GREEN     "\033[1;32m"
+#define COLOR_YELLOW    "\033[1;33m"
+#define COLOR_BLUE      "\033[1;34m"
+#define COLOR_MAGENTA   "\033[1;35m"
+#define COLOR_AQUA      "\033[1;36m"
+#define COLOR_WHITE     "\033[1;37m"
+#define COLOR_BLINK     "\033[5m"
+
+#define COLOR_PRINT(color, format, args...) \
+    printf(color format, ##args); \
+    printf(COLOR_NORMAL "")
+//#define COLOR_PRINT(color, format, ...)    printf(color format, __VA_ARGS__)
+//#define COLOR_PRINT(color, ...)    printf(color __VA_ARGS__)
+
+#define COLOR_POS_PRINT(color, format, args...)   \
+    printf(color "<file: %s, function: %s, line: %u>\n\t" format, \
+            SHORT_FILENAME, __FUNCTION__, __LINE__, ##args); \
+    printf(COLOR_NORMAL "")
+
+#define COLOR_DEBUG_PRINT(level, format, args...) \
+    do \
+    { \
+        ePrintLevel g_level = PRINT_ERROR; \
+        debug_level_get(&g_level); \
+        if ((level) <= g_level) \
+        { \
+            switch (level) \
+            { \
+            case PRINT_ERROR: \
+                printf(COLOR_RED "<file: %s, function: %s, line: %u>\n\t%s: " format, \
+                    SHORT_FILENAME, __FUNCTION__, __LINE__, enum_string_debuglevel(level), ##args); \
+                break; \
+            case PRINT_WARN: \
+                printf(COLOR_YELLOW "<file: %s, function: %s, line: %u>\n\t%s: " format, \
+                    SHORT_FILENAME, __FUNCTION__, __LINE__, enum_string_debuglevel(level), ##args); \
+                break; \
+            case PRINT_INFO: \
+                printf(COLOR_GREEN "<file: %s, function: %s, line: %u>\n\t%s: " format, \
+                    SHORT_FILENAME, __FUNCTION__, __LINE__, enum_string_debuglevel(level), ##args); \
+                break; \
+            default: \
+                printf(COLOR_NORMAL "<file: %s, function: %s, line: %u>\n\t%s: " format, \
+                    SHORT_FILENAME, __FUNCTION__, __LINE__, enum_string_debuglevel(level), ##args); \
+                break; \
+            } \
+        } \
+        printf(COLOR_NORMAL ""); \
+    } while(0)
+
+#endif /* OS_LINUX */
+
+/*****************************************************************************/
+#define IF_ERROR_RETURN(ret) \
+    do \
+    { \
+        eFuncRtn inner_ret = (ret); \
+        if (RTN_OK != inner_ret) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #ret" returns 0x%x!\n", inner_ret); \
+            return (inner_ret); \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+#define IF_ERROR_PRINT(ret) \
+    do \
+    { \
+        eFuncRtn inner_ret = (ret); \
+        if (RTN_OK != inner_ret) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #ret" returns 0x%x!\n", inner_ret); \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+#define PARAM_CHECK_NULL_PTR(param) \
+    do \
+    { \
+        if (NULL == (param)) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #param" is NULL pointer!\n"); \
+            return RTN_PARAM_NULL_PTR; \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+#define PARAM_CHECK_MIN(param, min) \
+    do \
+    { \
+        if ((min) > (param)) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #param" is less than "#min"!\n"); \
+            return RTN_PARAM_MIN; \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+#define PARAM_CHECK_MAX(param, max) \
+    do \
+    { \
+        if ((max) < (param)) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #param" is more than "#max"!\n"); \
+            return RTN_PARAM_MAX; \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+#define PARAM_CHECK_RANGE(param, min, max) \
+    do \
+    { \
+        if ((min) > (param) || (max) < (param)) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #param" is out of range ["#min", "#max"]!\n"); \
+            return RTN_PARAM_RANGE; \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+#define PARAM_CHECK_EQUAL(param, referent) \
+    do \
+    { \
+        if ((param) != (referent)) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #param" is equal to "#referent"!\n"); \
+            return RTN_PARAM_UNEQUAL; \
+        } \
+    } while (0)
+/*****************************************************************************/
+#define PARAM_CHECK_UNEQUAL(param, referent) \
+    do \
+    { \
+        if ((param) == (referent)) \
+        { \
+            COLOR_DEBUG_PRINT(PRINT_ERROR, #param" is not equal to "#referent"!\n"); \
+            return RTN_PARAM_EQUAL; \
+        } \
+    } while (0)
+
+/*****************************************************************************/
+typedef void (*FreeFunc)(void **data);
+typedef eCmpRtn (*CmpFunc)(const void *data1, const void *data2);
+typedef void (*PrintFunc)(const void *data);
+typedef eFuncRtn (*VisitFunc)(void *context, void *data);
+
+/*****************************************************************************/
+extern eFuncRtn memory_alloc(void **pointer, size_type size);
+extern void memory_free(void **pointer);
+
+/*****************************************************************************/
+extern eCmpRtn int_cmp(const void *data1, const void *data2);
+extern void int_print(const void *data);
+extern eFuncRtn int_sum(void *sum, void *data);
+/*****************************************************************************/
+extern char * short_filename(char *filename);
+
+/*****************************************************************************/
+
+/*****************************************************************************/
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
+#endif /* DPUB_H */
+

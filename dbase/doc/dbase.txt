@@ -1,0 +1,19 @@
+dbase: Dercury BASE
+It defines basic elements that are widely used in C language programming, including following:
+
+1.dmacro: basic macros
+2.dtype: basic types
+3.denum: basic enums
+4.dmemory: memory functions
+5.dstring: string functions
+6.dint: int functions
+7.dfile: file functions
+8.dbit: bit operation
+9.drand: random
+10.dprint:
+11.dlog:
+12.
+
+FreeFunc, CmpFunc need context
+alloc_memory caused compiling errors.
+

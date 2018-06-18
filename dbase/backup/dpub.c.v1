@@ -1,0 +1,212 @@
+/*****************************************************************************/
+/**
+ * @file        dpub.c
+ * @brief       common
+ * @version     1.0
+ * @author      dercury
+ * @date        2013-01-13
+ */
+/*****************************************************************************/
+#include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "dpub.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif /* __cplusplus */
+
+#if CODE_SEPARATOR("Inner Function", 1)
+
+ePrintLevel g_debug_level;
+
+#endif /* CODE_SEPARATOR("Inner Function", 1) */
+
+#if CODE_SEPARATOR("Outer Function", 1)
+
+/*****************************************************************************/
+char * enum2string_enable(eEnable en)
+{
+    char *str[] = {
+        "DISABLED",
+        "ENABLED",
+        };
+    return str[en];
+}
+
+/*****************************************************************************/
+char * enum2string_valid(eValid v)
+{
+    char *str[] = {
+        "INVALID",
+        "VALID",
+        };
+    return str[v];
+}
+
+/*****************************************************************************/
+char * enum2string_funcrtn(eFuncRtn ret)
+{
+    char *str[] = {
+        "OK",
+        "ERR",
+        "PARAM_NULL_PTR",
+        "PARAM_MIN",
+        "PARAM_MAX",
+        "PARAM_RANGE",
+        "PARAM_EQUAL"
+        "PARAM_UNEQUAL"
+        };
+    return str[ret];
+}
+
+/*****************************************************************************/
+char * enum2string_cmprtn(eCmpRtn ret)
+{
+    char *str[] = {
+        "EQUAL",
+        "MORE",
+        "LESS",
+        };
+    return str[ret];
+}
+
+/*****************************************************************************/
+char * enum_string_debuglevel(ePrintLevel level)
+{
+    char *str[] = {
+        "ERROR",
+        "WARN",
+        "INFO",
+        };
+    return str[level];
+}
+
+eFuncRtn debug_level_set(ePrintLevel level)
+{
+    g_debug_level = level;
+
+    return RTN_OK;
+}
+
+eFuncRtn debug_level_get(ePrintLevel *level)
+{
+    PARAM_CHECK_NULL_PTR(level);
+
+    *level = g_debug_level;
+
+    return RTN_OK;
+}
+
+/*****************************************************************************/
+eFuncRtn memory_alloc(void **pointer, size_type size)
+{
+    *pointer = malloc(size); 
+    if (NULL == *pointer) 
+    { 
+        printf("Error: memory alloc for 0x%08x failed! \n", (uint32)pointer); 
+        return RTN_MALLOC; 
+    } 
+    else 
+    { 
+        memset(*pointer, 0, size); 
+    } 
+
+    return RTN_OK;
+}
+
+/*****************************************************************************/
+void memory_free(void **pointer)
+{
+    free(*pointer);
+    *pointer = NULL;
+    return;
+}
+
+/*****************************************************************************/
+eCmpRtn int_cmp(const void *data1, const void *data2)
+{
+    int d1 = (int)data1;
+    int d2 = (int)data2;
+    eCmpRtn ret = CMP_EQUAL;
+
+    if (d1 > d2)
+    {
+        ret = CMP_MORE;
+    }
+    else if (d1 < d2)
+    {
+        ret = CMP_LESS;
+    }
+    else
+    {
+        ret = CMP_EQUAL;
+    }
+
+    return ret;
+}
+
+/*****************************************************************************/
+void int_print(const void *data)
+{
+    printf("%d ", (int)data);
+
+    return;
+}
+
+/*****************************************************************************/
+eFuncRtn int_sum(void *sum, void *data)
+{
+	int *sum_int = (int *)sum;
+    *sum_int += (int)data;
+
+    return RTN_OK;
+}
+
+/*****************************************************************************/
+#ifdef OS_WIN32
+
+BOOL SetConsoleColor(WORD wAttribute)
+{
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    if (INVALID_HANDLE_VALUE == hConsole)
+    {
+        return E_FALSE;
+    }
+    return SetConsoleTextAttribute(hConsole, wAttribute);
+}
+
+#else /* OS_LINUX */
+
+#endif /* #ifdef WIN32 */
+
+/*****************************************************************************/
+char * short_filename(char *filename)
+{
+    char *short_name = NULL;
+    size_type len = 0;
+
+    assert(NULL != filename);
+
+    len = strlen(filename);
+    for (short_name = filename + len; short_name >= filename; short_name--)
+    {
+        if ('\\' == short_name[0] || '/' == short_name[0])
+        {
+            short_name++;
+            break;
+        }
+    }
+
+    return short_name;
+}
+/*****************************************************************************/
+
+#endif /* CODE_SEPARATOR("Outer Function", 1) */
+
+#ifdef __cplusplus
+}
+#endif /* __cplusplus */
+
